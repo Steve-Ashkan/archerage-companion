@@ -1,6 +1,6 @@
 {
   "name": "archerage-companion",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ArcheRage Companion — crafting calculators, events, wiki, prices and more.",
   "main": "main.js",
   "scripts": {
@@ -41,7 +41,10 @@
       {
         "from": "addons",
         "to": "addons",
-        "filter": ["**/*", "!**/*.csv"]
+        "filter": [
+          "**/*",
+          "!**/*.csv"
+        ]
       }
     ]
   },

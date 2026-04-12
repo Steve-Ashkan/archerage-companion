@@ -491,13 +491,24 @@ function renderAddonBanner() {
   `;
 }
 
+const ADDON_PATH_KEY = 'addonInstallPath';
+
 window.installAddons = async function() {
   const btn = event?.target;
+
+  // Open folder picker — default to saved path or the standard ArcheRage location
+  const savedPath = localStorage.getItem(ADDON_PATH_KEY) || null;
+  const picked = await window.electronAPI?.pickFolder({ defaultPath: savedPath });
+  if (!picked?.ok || !picked.path) return; // user cancelled
+
+  const targetBase = picked.path;
+  localStorage.setItem(ADDON_PATH_KEY, targetBase);
+
   if (btn) { btn.disabled = true; btn.textContent = 'Installing…'; }
 
-  const result = await window.electronAPI?.installAddons();
+  const result = await window.electronAPI?.installAddons({ targetBase });
   if (!result?.ok) {
-    alert('Install failed. Check that ArcheRage is installed and try again.');
+    alert('Install failed. Please try again.');
     if (btn) { btn.disabled = false; btn.textContent = 'Install Addons'; }
     return;
   }
@@ -505,10 +516,14 @@ window.installAddons = async function() {
   const failed = Object.entries(result.results).filter(([, r]) => !r.ok);
   if (failed.length) {
     alert('Some addons failed to install:\n' + failed.map(([n, r]) => `${n}: ${r.error}`).join('\n'));
+  } else {
+    alert(`Addons installed to:\n${targetBase}`);
   }
 
-  // Re-check status and refresh
+  // Re-check status using the same path
   _addonStatus = null;
+  const check = await window.electronAPI?.checkAddonStatus({ targetBase });
+  if (check?.ok) _addonStatus = check.status;
   window.renderCurrentPage?.();
 };
 

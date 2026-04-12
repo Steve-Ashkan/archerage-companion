@@ -20,7 +20,7 @@ import { renderPage as renderMiscPage } from "./pages/misc.js";
 import { renderPage as renderWarriorNecklacePage } from "./pages/warriorNecklace.js";
 import { renderPage as renderIpnyshArtifactsPage } from "./pages/ipnyshArtifacts.js";
 import { renderPage as renderWikiPage } from "./pages/wiki.js";
-import { renderCostumeBuilderPage } from "./pages/costumeBuilder.js";
+import { renderCostumeBuilderPage } from "./pages/costumebuilder.js";
 import { renderPage as renderDevPanelPage, initDevPanel } from "./pages/devPanel.js";
 import { renderLoginPage } from "./pages/login.js";
 import { renderPage as renderRecipeLookupPage } from "./pages/recipeLookup.js";

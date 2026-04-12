@@ -72,8 +72,9 @@ try {
     wikiGetNews:          ()     => ipcRenderer.invoke('wiki-get-news'),
 
     // ── Addon Installer ───────────────────────────────────────────────────
-    checkAddonStatus: ()      => ipcRenderer.invoke('check-addon-status'),
-    installAddons:    (names) => ipcRenderer.invoke('install-addons', names),
+    pickFolder:       (opts)  => ipcRenderer.invoke('pick-folder', opts),
+    checkAddonStatus: (opts)  => ipcRenderer.invoke('check-addon-status', opts),
+    installAddons:    (opts)  => ipcRenderer.invoke('install-addons', opts),
 
     // ── Recipe Submissions ────────────────────────────────────────────────
     recipeSubmit:           (opts) => ipcRenderer.invoke('recipe-submit', opts),

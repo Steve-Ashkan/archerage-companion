@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs   = require('fs');
@@ -625,42 +625,53 @@ function getBundledAddonsDir() {
 
 const ADDON_NAMES = ['ahscanner', 'invscanner'];
 
+// Open a folder picker dialog — returns the selected path or null if cancelled.
+ipcMain.handle('pick-folder', async (event, { defaultPath } = {}) => {
+  const wins = BrowserWindow.getAllWindows();
+  const result = await dialog.showOpenDialog(wins[0] || null, {
+    title:       'Select your ArcheRage Addon folder',
+    defaultPath: defaultPath || path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon'),
+    properties:  ['openDirectory'],
+    buttonLabel: 'Select Addon Folder',
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: true, path: null };
+  return { ok: true, path: result.filePaths[0] };
+});
+
 // Check which addons are missing or present at the target location
-ipcMain.handle('check-addon-status', () => {
+ipcMain.handle('check-addon-status', (event, { targetBase } = {}) => {
   const bundledDir = getBundledAddonsDir();
-  const targetBase = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
+  const base = targetBase || path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
 
   const status = {};
   for (const name of ADDON_NAMES) {
     const bundled = path.join(bundledDir, name);
-    const target  = path.join(targetBase, name);
+    const target  = path.join(base, name);
     status[name] = {
       bundledExists: fs.existsSync(bundled),
       installed:     fs.existsSync(target),
     };
   }
-  return { ok: true, status, targetBase };
+  return { ok: true, status, targetBase: base };
 });
 
-// Copy bundled addons to ~/Documents/ArcheRage/Addon/
+// Copy bundled addons to the specified folder (or default location).
 // Always overwrites — keeps addon up to date with app updates.
-ipcMain.handle('install-addons', (event, names) => {
+ipcMain.handle('install-addons', (event, { names, targetBase } = {}) => {
   const bundledDir = getBundledAddonsDir();
-  const targetBase = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
+  const base       = targetBase || path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
   const toInstall  = (names && names.length) ? names : ADDON_NAMES;
 
   const results = {};
   for (const name of toInstall) {
     const src  = path.join(bundledDir, name);
-    const dest = path.join(targetBase, name);
+    const dest = path.join(base, name);
     try {
       if (!fs.existsSync(src)) {
         results[name] = { ok: false, error: 'Bundled addon not found' };
         continue;
       }
-      // Ensure destination folder exists
       fs.mkdirSync(dest, { recursive: true });
-      // Copy every file in the src folder
       const files = fs.readdirSync(src);
       for (const file of files) {
         fs.copyFileSync(path.join(src, file), path.join(dest, file));
@@ -670,7 +681,7 @@ ipcMain.handle('install-addons', (event, names) => {
       results[name] = { ok: false, error: e.message };
     }
   }
-  return { ok: true, results };
+  return { ok: true, results, targetBase: base };
 });
 
 // ─── IPC: RECIPE SUBMISSIONS ─────────────────────────────────────────────────
