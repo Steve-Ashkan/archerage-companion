@@ -23,13 +23,34 @@ function uid() {
 
 function defaultItems() {
   return [
-    'Guild Quest', 'Daily Contracts', 'Manastorm Shop', 'Castles',
-    'Specimen Dailys', 'Akaesh Eggs', 'Akaesh Merchants', 'Nut Dailys',
-    'Guild Missions', 'Family Quest', 'Tree+Mamm Dailys', 'CR', 'SGCR',
-    'Hiram Rift', 'GR', 'JMG', 'Whalesong', 'Aegis', 'Abyss Attack',
-    'Hasta Rift', 'Lusca', 'Halcy', 'Red Dragon', 'House Quest',
-    'Garden Quest', 'Stolen Ayanad Anima', 'Wizard\'s Token',
-  ].map(text => ({ id: uid(), text, checked: false }));
+    { text: 'Guild Quest',         desc: 'Located at the Guild Manager.' },
+    { text: 'Daily Contracts',     desc: 'At the bottom right of your screen.' },
+    { text: 'Manastorm Shop',      desc: 'At the bottom right of your screen.' },
+    { text: 'Castles',             desc: 'Whatever castles you own — do all 3 quests: Pack, Kill Quest, Silo.' },
+    { text: 'Specimen Dailies' },
+    { text: 'Akasch Eggs',         desc: 'Location: Titan\'s Maw.' },
+    { text: 'Akasch Merchant',     desc: 'Cragtear Scars: Talk to Laffi.' },
+    { text: 'Nuia Dailies',        desc: 'The Merciful Priest (accept & turn in) · Away From the Mad World (10 Stone Brick) · Be at Peace with Yourself (100 Lilies).' },
+    { text: 'Guild Missions',      desc: 'Shift+T (default) → Missions.' },
+    { text: 'Family Quest',        desc: 'Shift+T (default) → Family → All in the Family.' },
+    { text: 'Tree+Mamm Dailies',   desc: 'Tree: Black Forest Camp · Mam: Hall of Warriors.' },
+    { text: 'CR' },
+    { text: 'SGCR' },
+    { text: 'Hiram Rift' },
+    { text: 'GR' },
+    { text: 'JMG' },
+    { text: 'Whalesong' },
+    { text: 'Aegis' },
+    { text: 'Abyss Attack' },
+    { text: 'Hasla Rift' },
+    { text: 'Luscas' },
+    { text: 'Halcy' },
+    { text: 'Red Dragon' },
+    { text: 'House Quest' },
+    { text: 'Garden Quest' },
+    { text: 'Stolen Ayanad Anima' },
+    { text: 'Wizard\'s Token' },
+  ].map(i => ({ id: uid(), text: i.text, desc: i.desc || '', checked: false }));
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -153,17 +174,20 @@ export function renderPage() {
               No tasks yet. Click Edit List to add some.
             </div>
           ` : tab.items.map((item, idx) => `
-            <div style="display:flex;align-items:center;gap:12px;padding:9px 16px;
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 16px;
               border-bottom:1px solid #0f1520;
               ${item.checked ? 'opacity:0.45;' : ''}
               transition:opacity 0.2s;">
               <input type="checkbox" ${item.checked ? 'checked' : ''}
                 onchange="window.checklistToggle('${tab.id}','${item.id}')"
-                style="width:17px;height:17px;accent-color:#2d5a8a;cursor:pointer;flex-shrink:0;">
-              <span style="flex:1;font-size:14px;color:#cbd5e1;
-                ${item.checked ? 'text-decoration:line-through;' : ''}">
-                ${escHtml(item.text)}
-              </span>
+                style="width:17px;height:17px;accent-color:#2d5a8a;cursor:pointer;flex-shrink:0;margin-top:2px;align-self:flex-start;">
+              <div style="flex:1;">
+                <div style="font-size:14px;color:#cbd5e1;
+                  ${item.checked ? 'text-decoration:line-through;' : ''}">
+                  ${escHtml(item.text)}
+                </div>
+                ${item.desc ? `<div style="font-size:12px;color:#394252;margin-top:2px;line-height:1.5;">${escHtml(item.desc)}</div>` : ''}
+              </div>
               ${_editMode ? `
                 <div style="display:flex;gap:6px;">
                   ${idx > 0 ? `<button onclick="window.checklistMoveItem('${tab.id}','${item.id}',-1)"
