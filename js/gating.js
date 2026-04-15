@@ -14,6 +14,7 @@ import { hasRole } from "./roles.js";
 export const PAGES = [
   // ── Core ──────────────────────────────────────────────────────────────────
   { id: "landing",         label: "Home",                 group: "core"  },
+  { id: "guide",           label: "Guide",                group: "core"  },
   { id: "events",          label: "Events Schedule",      group: "core"  },
   { id: "wiki",            label: "Wiki",                 group: "core"  },
   { id: "pricesStorage",   label: "Prices & Storage",     group: "core"  },
@@ -31,6 +32,7 @@ export const PAGES = [
   { id: "misc",            label: "Misc.",                group: "calc"  },
 
   // ── Tools ─────────────────────────────────────────────────────────────────
+  { id: "addons",          label: "Addons",               group: "tools" },
   { id: "trimmer",         label: "Multipurpose Trimmer", group: "tools" },
   { id: "achievements",    label: "Achievements",         group: "tools" },
   { id: "costumeBuilder",  label: "Costume Builder",      group: "tools" },

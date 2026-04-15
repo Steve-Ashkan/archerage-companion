@@ -11,10 +11,11 @@ import {
 
 const AH_FEE = 0.05; // 5% auction house fee
 
-const VERIFY_KEY = 'recipeVerifications'; // { recipeId: 'verified' | 'wrong' }
-const EDITS_KEY  = 'recipeEdits';         // { recipeId: { ...overrides } }
-const CUSTOM_KEY = 'customRecipes';       // [ ...recipe objects ]
-const RANK_KEY   = 'proficiencyRank';
+const VERIFY_KEY  = 'recipeVerifications'; // { recipeId: 'verified' | 'wrong' }
+const EDITS_KEY   = 'recipeEdits';         // { recipeId: { ...overrides } }
+const CUSTOM_KEY  = 'customRecipes';       // [ ...recipe objects ]
+const HIDDEN_KEY  = 'hiddenRecipes';       // Set of base recipe IDs hidden by user
+const RANK_KEY    = 'proficiencyRank';
 
 function getSavedRank() {
   return localStorage.getItem(RANK_KEY) || 'Famed';
@@ -56,12 +57,43 @@ function saveCustomRecipes(list) {
   localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
 }
 
-// Merge base recipes with edits
+function getHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); } catch { return new Set(); }
+}
+
+function saveHidden(set) {
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set]));
+}
+
+// Community recipes approved by Ashkan — fetched from Supabase at page load
+let _communityRecipes = [];
+
+async function loadCommunityRecipes() {
+  const result = await window.electronAPI?.recipeGetApproved?.();
+  if (!result?.ok) return;
+  _communityRecipes = (result.recipes || []).map(r => ({
+    id:         `community_${r.id}`,
+    output:     r.output,
+    outputQty:  r.output_qty || 1,
+    profession: r.profession || 'Unknown',
+    labor:      r.labor || 0,
+    materials:  r.materials || [],
+    notes:      r.notes || null,
+    source:     'community',
+  }));
+  window.renderCurrentPage?.();
+}
+
+// Merge base recipes with edits + approved community recipes, filtering out hidden ones
 function getAllRecipes() {
   const edits   = getEdits();
   const custom  = getCustomRecipes();
-  const base    = RECIPES.map(r => edits[r.id] ? { ...r, ...edits[r.id], id: r.id } : r);
-  return [...base, ...custom];
+  const hidden  = getHidden();
+  const base    = RECIPES
+    .filter(r => !hidden.has(r.id))
+    .map(r => edits[r.id] ? { ...r, ...edits[r.id], id: r.id } : r);
+  const community = _communityRecipes.filter(r => !hidden.has(r.id));
+  return [...base, ...community, ...custom];
 }
 
 // ─── RANK BADGE ───────────────────────────────────────────────────────────────
@@ -121,12 +153,19 @@ function renderRankBadge() {
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 
-let _search   = '';
-let _prof     = 'All';
+let _search        = '';
+let _prof          = 'All';
+let _communityLoaded = false;
 let _filter   = 'all'; // all | unverified | verified | wrong
 let _rank     = getSavedRank();
 
 export function renderPage() {
+  // Load community recipes once per session
+  if (!_communityLoaded) {
+    _communityLoaded = true;
+    loadCommunityRecipes();
+  }
+
   const verifications = getVerifications();
   const all           = getAllRecipes();
 
@@ -149,9 +188,9 @@ export function renderPage() {
     <div class="card" style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
         <div>
-          <h2 style="margin:0 0 4px;">Recipe Verification</h2>
+          <h2 style="margin:0 0 4px;">Recipe Lookup</h2>
           <p style="margin:0;color:#566174;font-size:13px;">
-            Verify scraped recipes while in-game. Corrections are saved locally.
+            Search crafting recipes, check if you have the materials, and verify accuracy.
           </p>
         </div>
         <div style="display:flex;gap:16px;font-size:13px;">
@@ -159,6 +198,24 @@ export function renderPage() {
           <span style="color:#f87171;">✗ ${wrong} wrong</span>
           <span style="color:#566174;">? ${unverified} unverified</span>
         </div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+        margin-top:14px;padding:10px 14px;background:#0f1923;border:1px solid #1e2a38;border-radius:10px;">
+        <div style="font-size:13px;color:#8d99ab;">
+          <strong style="color:#ffd166;">${total.toLocaleString()} recipes</strong> in the database —
+          the more the community submits, the better this gets.
+          ${getHidden().size > 0 ? `<span style="color:#566174;margin-left:8px;">${getHidden().size} hidden —
+            <span onclick="window.restoreAllRecipes()" style="color:#93c5fd;cursor:pointer;text-decoration:underline;">
+              restore all
+            </span>
+          </span>` : ''}
+        </div>
+        <button onclick="window.showPage('submitRecipe')"
+          style="padding:6px 16px;background:#1a2535;border:1px solid #2d5a8a;color:#93c5fd;
+          border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+          + Submit a Recipe
+        </button>
       </div>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
@@ -186,7 +243,21 @@ export function renderPage() {
     </div>
 
     ${filtered.length === 0
-      ? `<div class="card" style="color:#566174;text-align:center;padding:40px;">No recipes match your filters.</div>`
+      ? `<div class="card" style="text-align:center;padding:40px 20px;">
+          <div style="font-size:2em;margin-bottom:12px;">⚗</div>
+          <div style="font-size:15px;font-weight:600;color:#eef2f7;margin-bottom:6px;">No recipes found</div>
+          <div style="font-size:13px;color:#566174;margin-bottom:18px;max-width:360px;margin-left:auto;margin-right:auto;">
+            ${_search
+              ? `Nothing matched "<strong style="color:#8d99ab;">${escapeHtml(_search)}</strong>". If you know this recipe, be the first to add it.`
+              : 'Try adjusting your filters, or help grow the database by submitting a recipe.'
+            }
+          </div>
+          <button onclick="window.showPage('submitRecipe')"
+            style="padding:9px 22px;background:#1a2535;border:1px solid #2d5a8a;color:#93c5fd;
+            border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+            Submit a Recipe →
+          </button>
+        </div>`
       : filtered.map(r => renderRecipeCard(r, verifications[r.id] || 'unverified')).join('')
     }
   `;
@@ -196,7 +267,8 @@ function renderRecipeCard(recipe, status) {
   const statusColor = { verified: '#86efac', wrong: '#f87171', unverified: '#566174' };
   const statusLabel = { verified: '✓ Verified', wrong: '✗ Wrong', unverified: '? Unverified' };
   const color = statusColor[status];
-  const isCustom = !RECIPES.find(r => r.id === recipe.id);
+  const isCustom    = recipe.source !== 'community' && !RECIPES.find(r => r.id === recipe.id);
+  const isCommunity = recipe.source === 'community';
 
   return `
     <div class="card" style="margin-bottom:10px;border-left:3px solid ${color};">
@@ -209,8 +281,10 @@ function renderRecipeCard(recipe, status) {
               background:#1a2535;color:#94a3b8;border:1px solid #2a3a52;">
               ${escapeHtml(recipe.profession)}
             </span>
-            ${isCustom ? `<span style="font-size:11px;padding:2px 8px;border-radius:4px;
+            ${isCustom    ? `<span style="font-size:11px;padding:2px 8px;border-radius:4px;
               background:#1a2030;color:#c084fc;border:1px solid #6030a0;">Custom</span>` : ''}
+            ${isCommunity ? `<span style="font-size:11px;padding:2px 8px;border-radius:4px;
+              background:#0a2a1a;color:#86efac;border:1px solid #2a5a2a;">Community</span>` : ''}
             ${(() => {
               const eff  = effectiveLabor(recipe.labor, _rank);
               const rank = getRankData(_rank);
@@ -249,9 +323,14 @@ function renderRecipeCard(recipe, status) {
           <button onclick="window.openEditRecipeModal('${jsEscape(recipe.id)}')"
             style="padding:4px 10px;font-size:12px;background:#1a2535;border:1px solid #2a3a52;
             color:#94a3b8;border-radius:6px;cursor:pointer;" title="Edit recipe">✎</button>
-          ${isCustom ? `<button onclick="window.deleteCustomRecipe('${jsEscape(recipe.id)}')"
-            style="padding:4px 10px;font-size:12px;background:#2a1a1a;border:1px solid #5a2a2a;
-            color:#f87171;border-radius:6px;cursor:pointer;" title="Delete">×</button>` : ''}
+          ${isCustom
+            ? `<button onclick="window.deleteCustomRecipe('${jsEscape(recipe.id)}')"
+                style="padding:4px 10px;font-size:12px;background:#2a1a1a;border:1px solid #5a2a2a;
+                color:#f87171;border-radius:6px;cursor:pointer;" title="Delete permanently">×</button>`
+            : `<button onclick="window.hideRecipe('${jsEscape(recipe.id)}')"
+                style="padding:4px 10px;font-size:12px;background:#1e2535;border:1px solid #2a3a52;
+                color:#566174;border-radius:6px;cursor:pointer;" title="Hide from list">×</button>`
+          }
         </div>
       </div>
     </div>
@@ -342,6 +421,18 @@ window.deleteCustomRecipe = function(id) {
   if (!confirm('Delete this custom recipe?')) return;
   const list = getCustomRecipes().filter(r => r.id !== id);
   saveCustomRecipes(list);
+  window.renderCurrentPage();
+};
+
+window.hideRecipe = function(id) {
+  const hidden = getHidden();
+  hidden.add(id);
+  saveHidden(hidden);
+  window.renderCurrentPage();
+};
+
+window.restoreAllRecipes = function() {
+  saveHidden(new Set());
   window.renderCurrentPage();
 };
 

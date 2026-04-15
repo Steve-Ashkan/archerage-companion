@@ -103,5 +103,8 @@ export function isRole(userRole, role) {
   return userRole === role;
 }
 
-// All valid role keys in hierarchy order.
+// All valid role keys lowest → highest (for logic/iteration).
 export const ALL_ROLES = Object.keys(ROLE_LEVEL);
+
+// All valid role keys highest → lowest (for display in dropdowns/pickers).
+export const ALL_ROLES_DISPLAY = [...ALL_ROLES].reverse();

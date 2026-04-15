@@ -22,6 +22,8 @@ import { renderPage as renderIpnyshArtifactsPage } from "./pages/ipnyshArtifacts
 import { renderPage as renderWikiPage } from "./pages/wiki.js";
 import { renderCostumeBuilderPage } from "./pages/costumebuilder.js";
 import { renderPage as renderDevPanelPage, initDevPanel } from "./pages/devPanel.js";
+import { renderPage as renderGuidePage } from "./pages/guide.js";
+import { renderPage as renderAddonsPage } from "./pages/addons.js";
 import { renderLoginPage } from "./pages/login.js";
 import { renderPage as renderRecipeLookupPage } from "./pages/recipeLookup.js";
 import { renderPage as renderArcPointsPage } from "./pages/arcPoints.js";
@@ -37,6 +39,7 @@ import { initMailSystem } from "./mail.js";
 const PAGE_REGISTRY = {
   login:           { render: renderLoginPage,           inject: true  },
   landing:         { render: renderLandingPage,         inject: true  },
+  guide:           { render: renderGuidePage,           inject: true  },
   events:          { render: renderEventSchedule,        inject: false },
   wiki:            { render: renderWikiPage,             inject: true  },
   netWorth:        { render: renderNetWorthPage,         inject: true  },
@@ -49,6 +52,7 @@ const PAGE_REGISTRY = {
   erenorCloak:     { render: renderErenorCloakPage,      inject: true  },
   libraryGear:     { render: renderLibraryGearPage,      inject: true  },
   hiramGear:       { render: renderHiramGearPage,        inject: true  },
+  addons:          { render: renderAddonsPage,            inject: true  },
   trimmer:         { render: renderTrimmerPage,          inject: true  },
   achievements:    { render: renderAchievementsPage,     inject: true  },
   misc:            { render: renderMiscPage,             inject: true  },
@@ -283,10 +287,24 @@ window.electronAPI?.onUpdateReady?.((version) => {
   }
 });
 
+// Log update errors to console so we can diagnose
+window.electronAPI?.onUpdateError?.((msg) => {
+  console.error('[updater] Error received in renderer:', msg);
+});
+
+// Manual update check — callable from dev panel or console
+window.checkForUpdate = () => window.electronAPI?.checkForUpdate?.();
+
 // Auth must resolve before we build the tab bar or render any page.
 initAuth().then(() => {
   // Unlock dev panel if auth gives admin/dev role
   if (hasRole(getRole(), "admin")) window.__devPanelUnlocked = true;
+
+  // Unlock DevTools in the menu if role is curator or above (server-verified)
+  if (hasRole(getRole(), "curator")) {
+    window.electronAPI?.requestDevTools?.();
+  }
+
   setupCommunityPrices();
   initMailSystem();
   buildTabBar();

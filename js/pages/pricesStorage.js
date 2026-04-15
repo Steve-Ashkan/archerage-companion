@@ -507,12 +507,15 @@ export function renderPricesStoragePage() {
           >×</button>`
         : "";
 
+      const _knownCats = getAllCategoryNames();
+      const _catRecognized = _knownCats.includes(row.category);
       const categoryDropdown = `
         <select
           style="font-size:12px;padding:2px 4px;max-width:160px;"
           onchange="window.changeItemCategory('${jsEscape(row.item)}', this.value)"
         >
-          ${getAllCategoryNames().map(cat =>
+          <option value=""${!_catRecognized ? " selected" : ""}>— None —</option>
+          ${_knownCats.map(cat =>
             `<option value="${escapeHtml(cat)}"${cat === row.category ? " selected" : ""}>${escapeHtml(cat)}</option>`
           ).join("")}
           <option value="__new__">＋ New category...</option>
@@ -567,7 +570,11 @@ export function renderPricesStoragePage() {
             >
           </td>
           <td>
-            <span style="color:#ffd166;">${row.price ? row.price.toFixed(4) : '—'}</span>
+            <span
+              style="color:#ffd166;cursor:pointer;border-bottom:1px dashed #5a4a10;"
+              title="Click to edit price"
+              onclick="window.openInlinePriceEdit('${jsEscape(row.item)}', ${row.price || 0})"
+            >${row.price ? row.price.toFixed(4) : '—'}</span>
             ${sourceBadge}
           </td>
           <td>${communityCell}</td>
@@ -894,6 +901,70 @@ window.updatePrice = function(item, value) {
   window.renderCurrentPage();
 };
 
+window.openInlinePriceEdit = function(item, currentPrice) {
+  // Remove any existing inline editor
+  document.getElementById('inline-price-modal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'inline-price-modal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.55);
+    display:flex;align-items:center;justify-content:center;z-index:9999;`;
+
+  modal.innerHTML = `
+    <div style="background:#1a2535;border:1px solid #2a3a52;border-radius:12px;
+      padding:24px;width:320px;max-width:95vw;">
+      <div style="font-size:13px;color:#8d99ab;margin-bottom:6px;">Set price for</div>
+      <div style="font-weight:700;color:#eef2f7;font-size:15px;margin-bottom:18px;">${escapeHtml(item)}</div>
+      <input id="inline-price-input" type="number" min="0" step="0.0001"
+        value="${currentPrice > 0 ? currentPrice : ''}"
+        placeholder="Price in gold (e.g. 1.2500)"
+        style="width:100%;box-sizing:border-box;padding:9px 12px;
+          background:#0f1923;border:1px solid #2a3a52;color:#ffd166;
+          border-radius:8px;font-size:14px;margin-bottom:16px;font-family:inherit;"
+      >
+      <div style="display:flex;gap:8px;">
+        <button onclick="window._confirmInlinePrice('${jsEscape(item)}')"
+          style="flex:1;padding:9px;background:#1a3a1a;border:1px solid #2d6a2d;
+          color:#86efac;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+          Save
+        </button>
+        <button onclick="document.getElementById('inline-price-modal')?.remove()"
+          style="flex:1;padding:9px;background:#1e2535;border:1px solid #2a3a52;
+          color:#566174;border-radius:8px;font-size:13px;cursor:pointer;">
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Close on backdrop click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('inline-price-input')?.focus(), 50);
+
+  // Enter to save
+  document.getElementById('inline-price-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') window._confirmInlinePrice(item);
+    if (e.key === 'Escape') modal.remove();
+  });
+};
+
+window._confirmInlinePrice = function(item) {
+  const input = document.getElementById('inline-price-input');
+  if (!input) return;
+  const val = parseFloat(input.value);
+  if (!isNaN(val) && val >= 0) {
+    savePrice(item, val);
+    markPriceUpdated(item);
+    setPriceSource(item, 'manual');
+  }
+  document.getElementById('inline-price-modal')?.remove();
+  window.renderCurrentPage();
+};
+
 window.startPriceWizard = function() {
   const items = buildWizardItems();
 
@@ -998,10 +1069,19 @@ window.triggerAHImport = async function() {
           setTimeout(() => { if (status) status.textContent = ""; }, 4000);
         }
         window.renderCurrentPage();
-        // Staff+ bulk push prompt
-        if (userHasRole('staff') && count > 0) {
-          window.__pendingBulkPush = result.data;
-          showBulkPushPrompt(count);
+        if (count > 0) {
+          if (userHasRole('dev') || userHasRole('admin')) {
+            // Dev/admin: push authoritative prices silently
+            const items = Object.entries(result.data)
+              .filter(([, p]) => p > 0)
+              .map(([item_name, price]) => ({ item_name, price }));
+            window.electronAPI?.submitAuthoritativePrices?.(items)
+              .then(r => { if (r?.ok) console.log(`[ah-import] Pushed ${r.pushed} authoritative prices`); })
+              .catch(() => {});
+          } else if (userHasRole('staff')) {
+            window.__pendingBulkPush = result.data;
+            showBulkPushPrompt(count);
+          }
         }
         return;
       } else if (!result.ok) {
@@ -1051,9 +1131,18 @@ window.handleAHCsvFile = function(input) {
     }
     input.value = "";
     window.renderCurrentPage();
-    if (userHasRole('staff') && count > 0) {
-      window.__pendingBulkPush = imported;
-      showBulkPushPrompt(count);
+    if (count > 0) {
+      if (userHasRole('dev') || userHasRole('admin')) {
+        const items = Object.entries(imported)
+          .filter(([, p]) => p > 0)
+          .map(([item_name, price]) => ({ item_name, price }));
+        window.electronAPI?.submitAuthoritativePrices?.(items)
+          .then(r => { if (r?.ok) console.log(`[ah-import] Pushed ${r.pushed} authoritative prices`); })
+          .catch(() => {});
+      } else if (userHasRole('staff')) {
+        window.__pendingBulkPush = imported;
+        showBulkPushPrompt(count);
+      }
     }
   };
   reader.readAsText(file);
@@ -1248,6 +1337,7 @@ window.handleModalCatChange = function(value, inputId) {
 // Change any item's category (built-in or custom) via inline dropdown
 // Also saves override to Net Worth category if one is set
 window.changeItemCategory = function(itemName, newCategory) {
+  if (newCategory === "") return; // "— None —" selected — no-op
   if (newCategory === "__new__") {
     const name = prompt("Enter new category name:");
     if (!name || !name.trim()) {
@@ -1382,4 +1472,23 @@ function handleInventoryData(rawData, statusEl, character) {
   }
 
   window.renderCurrentPage();
+
+  // Silently push inventory to community database (all users)
+  if (window.electronAPI?.submitInventory) {
+    const submitItems = items
+      .filter(name => (data[name]?.total || 0) > 0)
+      .map(name => {
+        const d = data[name];
+        return [
+          { item_name: name, quantity: d.bag   || 0, container: 'bag'        },
+          { item_name: name, quantity: d.bank  || 0, container: 'bank'       },
+          { item_name: name, quantity: d.guild || 0, container: 'guild_bank' },
+          { item_name: name, quantity: d.coffer|| 0, container: 'coffer'     },
+        ].filter(r => r.quantity > 0);
+      })
+      .flat();
+    if (submitItems.length > 0) {
+      window.electronAPI.submitInventory(submitItems).catch(() => {});
+    }
+  }
 }

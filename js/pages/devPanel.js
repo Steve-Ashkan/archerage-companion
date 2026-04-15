@@ -3,8 +3,9 @@
 // Requires 'admin' or 'dev' role in production.
 
 import { getAuth, getRole, devSetRole } from "../auth.js";
-import { ROLE_LABELS, ROLE_COLORS, ALL_ROLES } from "../roles.js";
+import { ROLE_LABELS, ROLE_COLORS, ROLE_LEVEL, ALL_ROLES, ALL_ROLES_DISPLAY } from "../roles.js";
 import { CONFIG } from "../config.js";
+import { escapeHtml } from "../utils.js";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -146,7 +147,7 @@ export function renderPage() {
           <div>
             <div class="dp-label">User</div>
             <div class="dp-value">${auth.user
-              ? `${auth.user.name} <span style="color:#566174;">(${auth.user.id})</span>`
+              ? `${escapeHtml(auth.user.name)} <span style="color:#566174;">(${escapeHtml(auth.user.id)})</span>`
               : '<span style="color:#566174;">Not logged in</span>'
             }</div>
           </div>
@@ -166,7 +167,7 @@ export function renderPage() {
           Simulates different roles for UI testing. Resets on refresh unless DEV_FORCE_PRO is set.
         </p>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          ${ALL_ROLES.map(r => {
+          ${ALL_ROLES_DISPLAY.map(r => {
             const color    = ROLE_COLORS[r];
             const isActive = r === role;
             return `<button class="dp-role-btn"
@@ -180,7 +181,7 @@ export function renderPage() {
         <hr class="dp-section-sep" style="margin-top:16px;">
         <p style="font-size:11px;color:#3d4f64;margin:10px 0 0;">
           To persist across restarts set <code style="color:#93c5fd;">DEV_FORCE_PRO: true</code>
-          and <code style="color:#93c5fd;">DEV_ROLE: '${role}'</code> in <code style="color:#93c5fd;">js/config.js</code>.
+          and <code style="color:#93c5fd;">DEV_ROLE: '${escapeHtml(role)}'</code> in <code style="color:#93c5fd;">js/config.js</code>.
         </p>
       </div>
 
@@ -226,6 +227,20 @@ export function renderPage() {
 
         <div id="dp-user-table-wrap">
           <div style="color:#566174;font-size:13px;padding:20px 0;">Loading users…</div>
+        </div>
+      </div>
+
+      <!-- ── Pending Price Items ───────────────────────────────────────────── -->
+      <div class="card dp-grid-full">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;">Pending Price Items <span style="font-size:12px;font-weight:400;color:#566174;">crowdsourced — not yet in scan list</span></h3>
+          <div style="display:flex;gap:8px;">
+            <button class="dp-btn success" id="dp-pending-add-all-btn" onclick="window.addAllPendingToScanList()">Add All to Scan List</button>
+            <button class="dp-btn" id="dp-pending-refresh-btn" onclick="window.loadPendingPriceItems()">Refresh</button>
+          </div>
+        </div>
+        <div id="dp-pending-wrap">
+          <div style="color:#566174;font-size:13px;padding:20px 0;">Loading…</div>
         </div>
       </div>
 
@@ -321,11 +336,11 @@ export function renderPage() {
           ? '<p style="color:#566174;font-size:13px;">localStorage is empty.</p>'
           : lsKeys.map(key => `
               <div class="dp-ls-row">
-                <span class="dp-ls-key">${key}</span>
+                <span class="dp-ls-key">${escapeHtml(key)}</span>
                 <span class="dp-ls-size">${lsSize(key)}</span>
-                <span class="dp-ls-preview">${lsPreview(key)}</span>
+                <span class="dp-ls-preview">${escapeHtml(lsPreview(key))}</span>
                 <button class="dp-btn danger" style="padding:3px 10px;font-size:11px;white-space:nowrap;"
-                  onclick="window.devClearKey('${key}')">Clear</button>
+                  data-ls-key="${escapeHtml(key)}" class="dp-ls-clear-btn">Clear</button>
               </div>
             `).join('')
         }
@@ -342,35 +357,37 @@ function renderUserTable(users) {
     return '<p style="color:#566174;font-size:13px;">No users found.</p>';
   }
 
-  const rows = users.map(u => {
+  const sorted = [...users].sort((a, b) => (ROLE_LEVEL[b.role] ?? 0) - (ROLE_LEVEL[a.role] ?? 0));
+
+  const rows = sorted.map(u => {
     const isSelf = u.id === getAuth().user?.id;
     const avatar = u.avatar_url
-      ? `<img class="dp-user-avatar" src="${u.avatar_url}" onerror="this.style.display='none'">`
+      ? `<img class="dp-user-avatar" src="${escapeHtml(u.avatar_url)}" onerror="this.style.display='none'">`
       : `<span style="display:inline-block;width:28px;height:28px;border-radius:50%;background:#2a3a52;margin-right:8px;vertical-align:middle;"></span>`;
 
     return `
-      <tr data-user-id="${u.id}">
+      <tr data-user-id="${escapeHtml(u.id)}">
         <td>
           ${avatar}
-          <span class="dp-user-name">${u.discord_name || 'Unknown'}</span>
+          <span class="dp-user-name">${escapeHtml(u.discord_name || 'Unknown')}</span>
           ${isSelf ? '<span style="font-size:10px;color:#566174;margin-left:6px;">(you)</span>' : ''}
         </td>
-        <td id="dp-role-cell-${u.id}">${rolePill(u.role)}</td>
-        <td id="dp-pro-cell-${u.id}">${formatExpiry(u.pro_expires_at)}</td>
+        <td id="dp-role-cell-${escapeHtml(u.id)}">${rolePill(u.role)}</td>
+        <td id="dp-pro-cell-${escapeHtml(u.id)}">${formatExpiry(u.pro_expires_at)}</td>
         <td>${formatLastSeen(u.last_seen_at)}</td>
         <td>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
             ${!isSelf ? `
               <div class="dp-days-row">
                 <input class="dp-days-input" type="number" min="1" max="365" value="30"
-                  id="dp-days-${u.id}" title="Days to grant">
+                  id="dp-days-${escapeHtml(u.id)}" title="Days to grant">
                 <button class="dp-btn success" style="padding:4px 10px;font-size:11px;"
-                  onclick="window.adminGrantPro('${u.id}')">Grant Pro</button>
+                  data-action="grant-pro" data-uid="${escapeHtml(u.id)}">Grant Pro</button>
               </div>
               <button class="dp-btn" style="padding:4px 10px;font-size:11px;"
-                onclick="window.adminOpenRolePicker('${u.id}', '${u.discord_name || 'User'}', '${u.role}')">Role</button>
+                data-action="open-role-picker" data-uid="${escapeHtml(u.id)}" data-name="${escapeHtml(u.discord_name || 'User')}" data-role="${escapeHtml(u.role)}">Role</button>
               <button class="dp-btn danger" style="padding:4px 10px;font-size:11px;"
-                onclick="window.adminRevokePro('${u.id}')">Revoke</button>
+                data-action="revoke-pro" data-uid="${escapeHtml(u.id)}">Revoke</button>
             ` : '<span style="color:#3d4f64;font-size:11px;">—</span>'}
           </div>
         </td>
@@ -399,10 +416,72 @@ function renderUserTable(users) {
 
 export function initDevPanel() {
   window.loadAdminUsers();
+  window.loadPendingPriceItems();
   window.loadFlaggedPrices();
   window.loadWikiSubmissions();
   window.loadRecipeSubmissions();
   window.loadRedemptionQueue();
+
+  // Delegated handler for user table buttons (data-action)
+  document.getElementById('dp-user-table-wrap')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const uid    = btn.dataset.uid;
+    if (action === 'grant-pro')        window.adminGrantPro(uid);
+    if (action === 'revoke-pro')       window.adminRevokePro(uid);
+    if (action === 'open-role-picker') window.adminOpenRolePicker(uid, btn.dataset.name, btn.dataset.role);
+  });
+
+  // Delegated handler for localStorage clear buttons (data-ls-key)
+  document.querySelector('.dp-grid')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dp-ls-clear-btn');
+    if (!btn) return;
+    window.devClearKey(btn.dataset.lsKey);
+  });
+
+  // Delegated handler for flagged prices table buttons (data-action)
+  document.getElementById('dp-flagged-wrap')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'accept-flagged') window.adminAcceptFlaggedPrice(btn.dataset.item, Number(btn.dataset.price));
+    if (action === 'reject-flagged') window.adminRejectFlaggedPrice(btn.dataset.item);
+  });
+
+  // Delegated handler for pending items "Add to Scan List" buttons
+  document.getElementById('dp-pending-wrap')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dp-pending-add-btn');
+    if (!btn) return;
+    window.addPendingItemToScanList(btn, btn.dataset.itemName);
+  });
+
+  // Delegated handler for wiki submission buttons (data-action)
+  document.getElementById('dp-wiki-wrap')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'approve-wiki') window.adminApproveWiki(btn.dataset.id, btn.dataset.discord, btn.dataset.title);
+    if (action === 'reject-wiki')  window.adminOpenRejectWiki(btn.dataset.id, btn.dataset.discord, btn.dataset.title);
+  });
+
+  // Delegated handler for recipe submission buttons (data-action)
+  document.getElementById('dp-recipe-wrap')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'approve-recipe') window.adminOpenApproveRecipe(btn.dataset.id);
+    if (action === 'reject-recipe')  window.adminOpenRejectRecipe(btn.dataset.id, btn.dataset.discord, btn.dataset.output);
+  });
+
+  // Delegated handler for redemption queue buttons (data-action)
+  document.getElementById('dp-redeem-wrap')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'fulfill-redemption') window.adminOpenFulfillModal(btn.dataset.id, btn.dataset.uid, btn.dataset.discord, btn.dataset.reward);
+    if (action === 'cancel-redemption')  window.adminCancelRedemption(btn.dataset.id);
+  });
 }
 
 // ─── HANDLERS ─────────────────────────────────────────────────────────────────
@@ -470,15 +549,15 @@ window.adminOpenRolePicker = function(userId, name, currentRole) {
   modal.className = 'dp-role-modal';
   modal.innerHTML = `
     <div class="dp-role-modal-box">
-      <p class="dp-role-modal-title">Change role for ${name}</p>
+      <p class="dp-role-modal-title">Change role for ${escapeHtml(name)}</p>
       <div class="dp-role-modal-grid">
-        ${ALL_ROLES.map(r => {
+        ${ALL_ROLES_DISPLAY.map(r => {
           const color    = ROLE_COLORS[r];
           const isActive = r === currentRole;
           return `<button class="dp-role-btn"
             style="background:${isActive ? color + '33' : 'transparent'};
                    color:${color};border-color:${color}${isActive ? '' : '44'};"
-            onclick="window.adminSetRole('${userId}', '${r}')">
+            data-action="set-role" data-uid="${escapeHtml(String(userId))}" data-role="${escapeHtml(r)}">
             ${ROLE_LABELS[r]}
           </button>`;
         }).join('')}
@@ -488,9 +567,11 @@ window.adminOpenRolePicker = function(userId, name, currentRole) {
       </button>
     </div>
   `;
-  // Close on backdrop click
+  // Close on backdrop click; handle role selection via delegation
   modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.remove();
+    if (e.target === modal) { modal.remove(); return; }
+    const btn = e.target.closest('[data-action="set-role"]');
+    if (btn) window.adminSetRole(btn.dataset.uid, btn.dataset.role);
   });
   document.body.appendChild(modal);
 };
@@ -523,19 +604,19 @@ function renderFlaggedPricesTable(items) {
 
     return `
       <tr>
-        <td style="font-weight:600;">${item.item_name}</td>
+        <td style="font-weight:600;">${escapeHtml(item.item_name)}</td>
         <td>${item.current_price != null ? formatGoldRaw(item.current_price) : '<span style="color:#566174;">None</span>'}</td>
         <td style="color:${varColor};">${item.avg_submission != null ? formatGoldRaw(item.avg_submission) : '—'}</td>
         <td>${variance != null ? `<span style="color:${varColor};">±${variance}%</span>` : '—'}</td>
-        <td style="color:#94a3b8;">${item.gray_count}</td>
+        <td style="color:#94a3b8;">${escapeHtml(String(item.gray_count))}</td>
         <td>
           <div style="display:flex;gap:6px;">
             <button class="dp-btn success" style="padding:4px 10px;font-size:11px;"
-              onclick="window.adminAcceptFlaggedPrice('${item.item_name.replace(/'/g,"\\'")}', ${item.avg_submission})">
+              data-action="accept-flagged" data-item="${escapeHtml(item.item_name)}" data-price="${Number(item.avg_submission)}">
               Accept avg
             </button>
             <button class="dp-btn danger" style="padding:4px 10px;font-size:11px;"
-              onclick="window.adminRejectFlaggedPrice('${item.item_name.replace(/'/g,"\\'")}')">
+              data-action="reject-flagged" data-item="${escapeHtml(item.item_name)}">
               Dismiss
             </button>
           </div>
@@ -573,6 +654,99 @@ function formatGoldRaw(copper) {
   if (s) parts.push(`${s}s`);
   if (c || !parts.length) parts.push(`${c}c`);
   return parts.join(' ');
+}
+
+// ─── PENDING PRICE ITEMS ──────────────────────────────────────────────────────
+
+window.loadPendingPriceItems = async function() {
+  const wrap = document.getElementById('dp-pending-wrap');
+  const btn  = document.getElementById('dp-pending-refresh-btn');
+  if (!wrap) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  wrap.innerHTML = '<div style="color:#566174;font-size:13px;padding:20px 0;">Loading…</div>';
+
+  const result = await window.electronAPI?.getPendingPriceItems?.();
+  if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+
+  if (!result?.ok) {
+    wrap.innerHTML = `<p style="color:#f87171;font-size:13px;">Error: ${result?.error || 'Unknown error'}</p>`;
+    return;
+  }
+
+  wrap.innerHTML = renderPendingPriceItems(result.items || []);
+};
+
+window.addAllPendingToScanList = async function() {
+  const wrap = document.getElementById('dp-pending-wrap');
+  const btn  = document.getElementById('dp-pending-add-all-btn');
+  const rows = wrap?.querySelectorAll('[data-pending-item]');
+  if (!rows?.length) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+  let added = 0;
+  for (const row of rows) {
+    const name = row.dataset.pendingItem;
+    if (name) {
+      const r = await window.electronAPI?.addToScanList?.(name);
+      if (r?.ok) added++;
+    }
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Add All to Scan List'; }
+  const status = document.createElement('p');
+  status.style.cssText = 'color:#86efac;font-size:13px;margin:8px 0 0;';
+  status.textContent = `Added ${added} items to scan_items.csv`;
+  wrap.appendChild(status);
+  setTimeout(() => status.remove(), 3000);
+};
+
+window.addPendingItemToScanList = async function(btn, itemName) {
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+  const result = await window.electronAPI?.addToScanList?.(itemName);
+  if (result?.ok) {
+    btn.textContent = 'Added ✓';
+    btn.className = btn.className.replace('success', '') + ' success';
+    btn.style.opacity = '0.6';
+  } else {
+    btn.textContent = result?.reason === 'exists' ? 'Already in list' : 'Failed';
+    btn.disabled = false;
+  }
+};
+
+function renderPendingPriceItems(items) {
+  if (!items.length) {
+    return '<p style="color:#566174;font-size:13px;">No pending items. All community items have prices.</p>';
+  }
+
+  const rows = items.map(item => `
+    <tr data-pending-item="${escapeHtml(item.item_name)}" style="border-bottom:1px solid #1e2a3a;">
+      <td style="padding:10px 12px;color:#eef2f7;">${escapeHtml(item.item_name)}</td>
+      <td style="padding:10px 12px;color:#94a3b8;font-size:13px;">${escapeHtml(String(item.submission_count || 0))} users</td>
+      <td style="padding:10px 12px;color:#566174;font-size:12px;">${item.last_updated ? new Date(item.last_updated).toLocaleDateString() : '—'}</td>
+      <td style="padding:10px 12px;">
+        <button class="dp-btn success dp-pending-add-btn" style="padding:4px 12px;font-size:12px;"
+          data-item-name="${escapeHtml(item.item_name)}">
+          Add to Scan List
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <table class="dp-table" style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid #2a3a52;text-align:left;">
+          <th style="padding:8px 12px;color:#566174;font-size:12px;font-weight:600;">Item Name</th>
+          <th style="padding:8px 12px;color:#566174;font-size:12px;font-weight:600;">Seen By</th>
+          <th style="padding:8px 12px;color:#566174;font-size:12px;font-weight:600;">First Seen</th>
+          <th style="padding:8px 12px;color:#566174;font-size:12px;font-weight:600;">Action</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="color:#566174;font-size:12px;margin:12px 0 0;">${items.length} item${items.length !== 1 ? 's' : ''} waiting for a price scan</p>
+  `;
 }
 
 window.loadFlaggedPrices = async function() {
@@ -638,27 +812,27 @@ function renderWikiSubmissions(items) {
       <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;padding:16px;margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
           <div>
-            <div style="font-weight:700;color:#eef2f7;font-size:14px;">${s.title}</div>
+            <div style="font-weight:700;color:#eef2f7;font-size:14px;">${escapeHtml(s.title || '')}</div>
             <div style="font-size:12px;color:#566174;margin-top:2px;">
-              ${s.category} · ${s.ign || s.discord_name || 'Unknown'} · ${date}
+              ${escapeHtml(s.category || '')} · ${escapeHtml(s.ign || s.discord_name || 'Unknown')} · ${date}
             </div>
           </div>
           <span style="font-size:12px;padding:2px 10px;border-radius:20px;
             background:${color}22;color:${color};border:1px solid ${color}44;white-space:nowrap;">
-            ${s.status}
+            ${escapeHtml(s.status || '')}
           </span>
         </div>
         <div style="font-size:12px;color:#566174;font-family:monospace;
           background:#0a1018;border-radius:6px;padding:10px;margin-bottom:12px;
-          white-space:pre-wrap;line-height:1.5;">${s.content ? s.content.slice(0,300) + (s.content.length > 300 ? '…' : '') : ''}</div>
+          white-space:pre-wrap;line-height:1.5;">${s.content ? escapeHtml(s.content.slice(0,300) + (s.content.length > 300 ? '…' : '')) : ''}</div>
         ${s.status === 'pending' ? `
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="dp-btn success" style="padding:5px 14px;font-size:12px;"
-              onclick="window.adminApproveWiki('${s.id}', '${(s.discord_name||'').replace(/'/g,"\\'")}', '${(s.title||'').replace(/'/g,"\\'")}')">
+              data-action="approve-wiki" data-id="${escapeHtml(String(s.id))}" data-discord="${escapeHtml(s.discord_name || '')}" data-title="${escapeHtml(s.title || '')}">
               ✓ Approve (+25 pts)
             </button>
             <button class="dp-btn danger" style="padding:5px 14px;font-size:12px;"
-              onclick="window.adminOpenRejectWiki('${s.id}', '${(s.discord_name||'').replace(/'/g,"\\'")}', '${(s.title||'').replace(/'/g,"\\'")}')">
+              data-action="reject-wiki" data-id="${escapeHtml(String(s.id))}" data-discord="${escapeHtml(s.discord_name || '')}" data-title="${escapeHtml(s.title || '')}">
               ✗ Reject
             </button>
           </div>
@@ -712,7 +886,7 @@ window.adminOpenRejectWiki = function(id, discordName, title) {
   modal.className = 'dp-role-modal';
   modal.innerHTML = `
     <div class="dp-role-modal-box" style="min-width:380px;">
-      <p class="dp-role-modal-title">Reject: ${title}</p>
+      <p class="dp-role-modal-title">Reject: ${escapeHtml(title)}</p>
       <div style="margin-bottom:14px;">
         <div class="dp-label">Feedback for submitter</div>
         <textarea id="dp-reject-feedback" placeholder="Tell them why it was rejected or what to improve..."
@@ -722,7 +896,7 @@ window.adminOpenRejectWiki = function(id, discordName, title) {
       </div>
       <div style="display:flex;gap:8px;">
         <button class="dp-btn danger" style="flex:1;"
-          onclick="window.adminRejectWiki('${id}', '${discordName.replace(/'/g,"\\'")}', '${title.replace(/'/g,"\\'")}')">
+          data-action="confirm-reject-wiki" data-id="${escapeHtml(String(id))}" data-discord="${escapeHtml(discordName)}" data-title="${escapeHtml(title)}">
           Reject & Notify
         </button>
         <button class="dp-btn" style="flex:1;"
@@ -730,7 +904,11 @@ window.adminOpenRejectWiki = function(id, discordName, title) {
       </div>
     </div>
   `;
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  modal.addEventListener('click', e => {
+    if (e.target === modal) { modal.remove(); return; }
+    const btn = e.target.closest('[data-action="confirm-reject-wiki"]');
+    if (btn) window.adminRejectWiki(btn.dataset.id, btn.dataset.discord, btn.dataset.title);
+  });
   document.body.appendChild(modal);
 };
 
@@ -786,15 +964,15 @@ function renderRecipeSubmissions(items) {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
           <div>
             <div style="font-weight:700;color:#eef2f7;font-size:14px;">
-              ${s.output_qty > 1 ? `${s.output_qty}× ` : ''}${s.output}
+              ${s.output_qty > 1 ? `${escapeHtml(String(s.output_qty))}× ` : ''}${escapeHtml(s.output || '')}
             </div>
             <div style="font-size:12px;color:#566174;margin-top:2px;">
-              ${s.profession || '—'} · ${s.labor} labor · ${s.ign || s.discord_name || 'Unknown'} · ${date}
+              ${escapeHtml(s.profession || '—')} · ${escapeHtml(String(s.labor || 0))} labor · ${escapeHtml(s.ign || s.discord_name || 'Unknown')} · ${date}
             </div>
           </div>
           <span style="font-size:12px;padding:2px 10px;border-radius:20px;
             background:${color}22;color:${color};border:1px solid ${color}44;white-space:nowrap;">
-            ${s.status}
+            ${escapeHtml(s.status || '')}
           </span>
         </div>
 
@@ -803,22 +981,22 @@ function renderRecipeSubmissions(items) {
           ${mats.length
             ? mats.map(m => `<span style="display:inline-block;margin:2px 4px 2px 0;padding:3px 8px;
                 background:#1a2535;border:1px solid #2a3a52;border-radius:6px;font-size:12px;color:#cbd5e1;">
-                ${m.qty}× ${m.item}
+                ${escapeHtml(String(m.qty))}× ${escapeHtml(m.item || '')}
               </span>`).join('')
             : '<span style="color:#566174;font-size:12px;">No materials listed</span>'
           }
         </div>
 
-        ${s.notes ? `<div style="font-size:12px;color:#8d99ab;margin-bottom:12px;">Note: ${s.notes}</div>` : ''}
+        ${s.notes ? `<div style="font-size:12px;color:#8d99ab;margin-bottom:12px;">Note: ${escapeHtml(s.notes)}</div>` : ''}
 
         ${s.status === 'pending' ? `
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="dp-btn success" style="padding:5px 14px;font-size:12px;"
-              onclick="window.adminOpenApproveRecipe('${s.id}')">
+              data-action="approve-recipe" data-id="${escapeHtml(String(s.id))}">
               ✓ Approve & Edit (+5 pts)
             </button>
             <button class="dp-btn danger" style="padding:5px 14px;font-size:12px;"
-              onclick="window.adminOpenRejectRecipe('${s.id}', '${(s.discord_name||'').replace(/'/g,"\\'")}', '${(s.output||'').replace(/'/g,"\\'")}')">
+              data-action="reject-recipe" data-id="${escapeHtml(String(s.id))}" data-discord="${escapeHtml(s.discord_name || '')}" data-output="${escapeHtml(s.output || '')}">
               ✗ Reject
             </button>
           </div>
@@ -854,10 +1032,10 @@ window.adminOpenApproveRecipe = function(id) {
 
   const matsHtml = mats.map((m, i) => `
     <div style="display:grid;grid-template-columns:1fr 70px 28px;gap:6px;align-items:center;margin-bottom:6px;" id="rma-row-${i}">
-      <input type="text" value="${(m.item||'').replace(/"/g,'&quot;')}"
+      <input type="text" value="${escapeHtml(m.item||'')}"
         onchange="window._rmaUpdateMat(${i},'item',this.value)"
         style="padding:6px 10px;background:#0a1018;border:1px solid #2a3a52;color:#eef2f7;border-radius:6px;font-size:13px;">
-      <input type="number" min="1" value="${m.qty||1}"
+      <input type="number" min="1" value="${escapeHtml(String(m.qty||1))}"
         onchange="window._rmaUpdateMat(${i},'qty',this.value)"
         style="padding:6px 8px;background:#0a1018;border:1px solid #2a3a52;color:#eef2f7;border-radius:6px;font-size:13px;text-align:center;">
       <button onclick="window._rmaRemoveMat(${i})" title="Remove"
@@ -875,7 +1053,7 @@ window.adminOpenApproveRecipe = function(id) {
   modal.className = 'dp-role-modal';
   modal.innerHTML = `
     <div class="dp-role-modal-box" style="min-width:460px;max-width:520px;max-height:85vh;overflow-y:auto;">
-      <p class="dp-role-modal-title">Approve Recipe: ${s.output}</p>
+      <p class="dp-role-modal-title">Approve Recipe: ${escapeHtml(s.output || '')}</p>
       <p style="font-size:12px;color:#566174;margin:-8px 0 16px;">
         Edit anything before approving. The corrected version goes live.
       </p>
@@ -883,7 +1061,7 @@ window.adminOpenApproveRecipe = function(id) {
       <div style="display:flex;gap:10px;margin-bottom:12px;">
         <div style="flex:1;">
           <div class="dp-label">Output Item</div>
-          <input id="rma-output" type="text" value="${(s.output||'').replace(/"/g,'&quot;')}"
+          <input id="rma-output" type="text" value="${escapeHtml(s.output||'')}"
             style="width:100%;box-sizing:border-box;padding:7px 10px;background:#0a1018;
             border:1px solid #2a3a52;color:#eef2f7;border-radius:6px;font-size:13px;">
         </div>
@@ -921,7 +1099,7 @@ window.adminOpenApproveRecipe = function(id) {
 
       <div style="margin-bottom:14px;">
         <div class="dp-label">Notes</div>
-        <input id="rma-notes" type="text" value="${(s.notes||'').replace(/"/g,'&quot;')}"
+        <input id="rma-notes" type="text" value="${escapeHtml(s.notes||'')}"
           placeholder="Optional"
           style="width:100%;box-sizing:border-box;padding:7px 10px;background:#0a1018;
           border:1px solid #2a3a52;color:#eef2f7;border-radius:6px;font-size:13px;">
@@ -929,7 +1107,7 @@ window.adminOpenApproveRecipe = function(id) {
 
       <div style="display:flex;gap:8px;">
         <button class="dp-btn success" style="flex:1;"
-          onclick="window.adminApproveRecipe('${s.id}', '${(s.discord_name||'').replace(/'/g,"\\'")}', '${(s.output||'').replace(/'/g,"\\'")}')">
+          data-action="confirm-approve-recipe" data-id="${escapeHtml(String(s.id))}" data-discord="${escapeHtml(s.discord_name||'')}" data-output="${escapeHtml(s.output||'')}">
           ✓ Approve (+5 pts)
         </button>
         <button class="dp-btn" style="flex:1;"
@@ -937,7 +1115,11 @@ window.adminOpenApproveRecipe = function(id) {
       </div>
     </div>
   `;
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  modal.addEventListener('click', e => {
+    if (e.target === modal) { modal.remove(); return; }
+    const btn = e.target.closest('[data-action="confirm-approve-recipe"]');
+    if (btn) window.adminApproveRecipe(btn.dataset.id, btn.dataset.discord, btn.dataset.output);
+  });
   document.body.appendChild(modal);
 
   // Store working copy of materials for this modal
@@ -953,10 +1135,10 @@ window._rmaAddMat = function() {
   if (!list) return;
   list.innerHTML = window._rmaMats.map((m, i) => `
     <div style="display:grid;grid-template-columns:1fr 70px 28px;gap:6px;align-items:center;margin-bottom:6px;">
-      <input type="text" value="${(m.item||'').replace(/"/g,'&quot;')}"
+      <input type="text" value="${escapeHtml(m.item||'')}"
         onchange="window._rmaUpdateMat(${i},'item',this.value)"
         style="padding:6px 10px;background:#0a1018;border:1px solid #2a3a52;color:#eef2f7;border-radius:6px;font-size:13px;">
-      <input type="number" min="1" value="${m.qty||1}"
+      <input type="number" min="1" value="${escapeHtml(String(m.qty||1))}"
         onchange="window._rmaUpdateMat(${i},'qty',this.value)"
         style="padding:6px 8px;background:#0a1018;border:1px solid #2a3a52;color:#eef2f7;border-radius:6px;font-size:13px;text-align:center;">
       <button onclick="window._rmaRemoveMat(${i})" title="Remove"
@@ -1030,7 +1212,7 @@ window.adminOpenRejectRecipe = function(id, discordName, output) {
   modal.className = 'dp-role-modal';
   modal.innerHTML = `
     <div class="dp-role-modal-box" style="min-width:380px;">
-      <p class="dp-role-modal-title">Reject: ${output}</p>
+      <p class="dp-role-modal-title">Reject: ${escapeHtml(output)}</p>
       <div style="margin-bottom:14px;">
         <div class="dp-label">Feedback (optional)</div>
         <textarea id="dp-recipe-reject-feedback" placeholder="Tell them what was wrong or how to improve..."
@@ -1040,7 +1222,7 @@ window.adminOpenRejectRecipe = function(id, discordName, output) {
       </div>
       <div style="display:flex;gap:8px;">
         <button class="dp-btn danger" style="flex:1;"
-          onclick="window.adminRejectRecipe('${id}', '${discordName.replace(/'/g,"\\'")}', '${output.replace(/'/g,"\\'")}')">
+          data-action="confirm-reject-recipe" data-id="${escapeHtml(String(id))}" data-discord="${escapeHtml(discordName)}" data-output="${escapeHtml(output)}">
           Reject & Notify
         </button>
         <button class="dp-btn" style="flex:1;"
@@ -1048,7 +1230,11 @@ window.adminOpenRejectRecipe = function(id, discordName, output) {
       </div>
     </div>
   `;
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  modal.addEventListener('click', e => {
+    if (e.target === modal) { modal.remove(); return; }
+    const btn = e.target.closest('[data-action="confirm-reject-recipe"]');
+    if (btn) window.adminRejectRecipe(btn.dataset.id, btn.dataset.discord, btn.dataset.output);
+  });
   document.body.appendChild(modal);
 };
 
@@ -1094,27 +1280,27 @@ function renderRedemptionQueue(items) {
     return `
       <tr>
         <td>
-          <div style="font-weight:600;color:#eef2f7;">${r.discord_name || '—'}</div>
-          ${r.ign_snapshot ? `<div style="font-size:11px;color:#566174;">IGN: ${r.ign_snapshot}</div>` : ''}
+          <div style="font-weight:600;color:#eef2f7;">${escapeHtml(r.discord_name || '—')}</div>
+          ${r.ign_snapshot ? `<div style="font-size:11px;color:#566174;">IGN: ${escapeHtml(r.ign_snapshot)}</div>` : ''}
         </td>
-        <td style="color:#cbd5e1;">${r.reward_label}</td>
-        <td style="color:#ffd166;">${r.points_spent?.toLocaleString()} pts</td>
+        <td style="color:#cbd5e1;">${escapeHtml(r.reward_label || '')}</td>
+        <td style="color:#ffd166;">${escapeHtml(String(r.points_spent?.toLocaleString() ?? ''))} pts</td>
         <td style="color:#566174;font-size:12px;">${date}</td>
         <td>
           <span style="font-size:12px;padding:2px 10px;border-radius:20px;
             background:${color}22;color:${color};border:1px solid ${color}44;">
-            ${r.status}
+            ${escapeHtml(r.status || '')}
           </span>
         </td>
         <td>
           ${r.status === 'pending' ? `
             <div style="display:flex;gap:6px;">
               <button class="dp-btn success" style="padding:4px 10px;font-size:11px;"
-                onclick="window.adminOpenFulfillModal('${r.id}', '${(r.user_id || '').replace(/'/g,"\\'")}', '${(r.discord_name || '').replace(/'/g,"\\'")}', '${(r.reward_label || '').replace(/'/g,"\\'")}')">
+                data-action="fulfill-redemption" data-id="${escapeHtml(String(r.id))}" data-uid="${escapeHtml(r.user_id || '')}" data-discord="${escapeHtml(r.discord_name || '')}" data-reward="${escapeHtml(r.reward_label || '')}">
                 Fulfill
               </button>
               <button class="dp-btn danger" style="padding:4px 10px;font-size:11px;"
-                onclick="window.adminCancelRedemption('${r.id}')">
+                data-action="cancel-redemption" data-id="${escapeHtml(String(r.id))}">
                 Cancel
               </button>
             </div>
@@ -1167,8 +1353,8 @@ window.adminOpenFulfillModal = function(id, userId, discordName, rewardLabel) {
   modal.className = 'dp-role-modal';
   modal.innerHTML = `
     <div class="dp-role-modal-box" style="min-width:360px;">
-      <p class="dp-role-modal-title">Fulfill: ${rewardLabel}</p>
-      <p style="font-size:13px;color:#8d99ab;margin:0 0 14px;">For: <strong style="color:#eef2f7;">${discordName}</strong></p>
+      <p class="dp-role-modal-title">Fulfill: ${escapeHtml(rewardLabel)}</p>
+      <p style="font-size:13px;color:#8d99ab;margin:0 0 14px;">For: <strong style="color:#eef2f7;">${escapeHtml(discordName)}</strong></p>
       <div style="margin-bottom:14px;">
         <div class="dp-label">Notes (optional — sent to user)</div>
         <textarea id="dp-fulfill-notes" placeholder="e.g. Gold sent in-game!"
@@ -1178,7 +1364,7 @@ window.adminOpenFulfillModal = function(id, userId, discordName, rewardLabel) {
       </div>
       <div style="display:flex;gap:8px;">
         <button class="dp-btn success" style="flex:1;"
-          onclick="window.adminFulfillRedemption('${id}', '${userId.replace(/'/g,"\\'")}', '${discordName.replace(/'/g,"\\'")}', '${rewardLabel.replace(/'/g,"\\'")}')">
+          data-action="confirm-fulfill" data-id="${escapeHtml(String(id))}" data-uid="${escapeHtml(userId)}" data-discord="${escapeHtml(discordName)}" data-reward="${escapeHtml(rewardLabel)}">
           Mark Fulfilled
         </button>
         <button class="dp-btn dp-role-modal-cancel" style="flex:1;margin:0;"
@@ -1186,7 +1372,11 @@ window.adminOpenFulfillModal = function(id, userId, discordName, rewardLabel) {
       </div>
     </div>
   `;
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  modal.addEventListener('click', e => {
+    if (e.target === modal) { modal.remove(); return; }
+    const btn = e.target.closest('[data-action="confirm-fulfill"]');
+    if (btn) window.adminFulfillRedemption(btn.dataset.id, btn.dataset.uid, btn.dataset.discord, btn.dataset.reward);
+  });
   document.body.appendChild(modal);
 };
 
@@ -1246,8 +1436,8 @@ window.dpLookupMailRecipient = function(val) {
     if (!statusEl) return;
     if (result?.ok && result.user) {
       const u = result.user;
-      const ignNote = u.ign ? ` · IGN: ${u.ign}` : ' · No IGN set';
-      statusEl.innerHTML = `<span style="color:#86efac;">✓ ${u.discord_name}${ignNote}</span>`;
+      const ignNote = u.ign ? ` · IGN: ${escapeHtml(u.ign)}` : ' · No IGN set';
+      statusEl.innerHTML = `<span style="color:#86efac;">✓ ${escapeHtml(u.discord_name)}${ignNote}</span>`;
       _dpMailRecipientId = u.id;
       if (sendBtn) { sendBtn.disabled = false; sendBtn.style.opacity = '1'; sendBtn.style.cursor = 'pointer'; }
     } else {

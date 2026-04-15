@@ -6,7 +6,6 @@
 - He knows what he wants, thinks in product terms, great instincts
 - He plays on **ArcheRage** private server (not retail ArcheAge)
 - In-game character name: **Ashkan**
-- Location: Blanchard, Oklahoma
 
 ---
 

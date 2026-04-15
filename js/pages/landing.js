@@ -340,21 +340,10 @@ function renderProPitch() {
 
   return `
     <div class="card" style="border-color:#3a3018;background:linear-gradient(135deg,#21262f 0%,#1e2010 100%);">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
-        <div>
-          <h3 style="margin:0 0 4px;color:#ffd166;">Unlock Pro</h3>
-          <div style="font-size:13px;color:#8d99ab;">$5.99/month · 7-day free trial · cancel anytime</div>
-        </div>
-        <button onclick="window.showPage('login')"
-          style="padding:9px 22px;background:#2a2010;border:1px solid #ffd166;color:#ffd166;
-          border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
-          transition:background 0.15s;"
-          onmouseover="this.style.background='#3a3018'" onmouseout="this.style.background='#2a2010'">
-          Start Free Trial →
-        </button>
-      </div>
+      <h3 style="margin:0 0 4px;color:#ffd166;">Unlock Pro</h3>
+      <div style="font-size:13px;color:#8d99ab;margin-bottom:18px;">Support the app and get access to all Pro features.</div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:20px;">
         <div>
           <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
             color:#566174;margin-bottom:8px;">Free tier</div>
@@ -365,6 +354,84 @@ function renderProPitch() {
             color:#a07a10;margin-bottom:8px;">Pro only</div>
           ${proRows}
         </div>
+      </div>
+
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+        color:#566174;margin-bottom:10px;">Choose how to support</div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+
+        <!-- Option 1: Monthly subscription -->
+        <div style="background:#1a1a0a;border:1px solid #3a3018;border-radius:10px;padding:16px;">
+          <div style="font-size:11px;font-weight:700;color:#ffd166;text-transform:uppercase;
+            letter-spacing:0.06em;margin-bottom:6px;">Monthly Sub</div>
+          <div style="font-size:22px;font-weight:800;color:#eef2f7;margin-bottom:2px;">$5.99<span style="font-size:13px;font-weight:400;color:#8d99ab;">/mo</span></div>
+          <div style="font-size:12px;color:#566174;margin-bottom:12px;">7-day free trial · cancel anytime</div>
+          <div style="display:inline-block;padding:7px 16px;background:#2a2010;border:1px solid #566174;
+            color:#566174;border-radius:8px;font-size:12px;font-weight:600;cursor:default;
+            white-space:nowrap;" title="Payment system coming soon">
+            Coming Soon
+          </div>
+        </div>
+
+        <!-- Option 2: In-game credits -->
+        <div style="background:#0a1a1a;border:1px solid #1a3a3a;border-radius:10px;padding:16px;">
+          <div style="font-size:11px;font-weight:700;color:#86efac;text-transform:uppercase;
+            letter-spacing:0.06em;margin-bottom:6px;">In-Game Credits</div>
+          <div style="font-size:22px;font-weight:800;color:#eef2f7;margin-bottom:2px;">2,000<span style="font-size:13px;font-weight:400;color:#8d99ab;"> Credits</span></div>
+          <div style="font-size:12px;color:#566174;margin-bottom:12px;">Mail to <strong style="color:#86efac;">Ashkan</strong> in-game</div>
+          <button onclick="window.showCreditsDonateModal()"
+            style="padding:7px 16px;background:#0a2a1a;border:1px solid #86efac;color:#86efac;
+            border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+            transition:background 0.15s;"
+            onmouseover="this.style.background='#1a3a2a'" onmouseout="this.style.background='#0a2a1a'">
+            Sent Credits for Pro?
+          </button>
+        </div>
+
+        <!-- Option 3: ARC Points -->
+        <div style="background:#0a0a1a;border:1px solid #1a1a3a;border-radius:10px;padding:16px;">
+          <div style="font-size:11px;font-weight:700;color:#93c5fd;text-transform:uppercase;
+            letter-spacing:0.06em;margin-bottom:6px;">ARC Points</div>
+          <div style="font-size:22px;font-weight:800;color:#eef2f7;margin-bottom:2px;">2,000<span style="font-size:13px;font-weight:400;color:#8d99ab;"> pts</span></div>
+          <div style="font-size:12px;color:#566174;margin-bottom:12px;">Earn by contributing to the app</div>
+          <button onclick="window.showPage('submitRecipe')"
+            style="padding:7px 16px;background:#0a0a2a;border:1px solid #93c5fd;color:#93c5fd;
+            border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+            transition:background 0.15s;"
+            onmouseover="this.style.background='#1a1a3a'" onmouseout="this.style.background='#0a0a2a'">
+            Start Earning →
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+function renderDiscordCard() {
+  return `
+    <div class="card" style="border-color:#2a2a5a;background:linear-gradient(135deg,#21262f 0%,#0f1020 100%);">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:44px;height:44px;border-radius:50%;background:#5865F2;
+            display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="22" height="22" viewBox="0 0 71 55" fill="white" xmlns="http://www.w3.org/2000/svg">
+              <path d="M60.1 4.9A58.5 58.5 0 0 0 45.5.4a.2.2 0 0 0-.2.1 40.7 40.7 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0A37.7 37.7 0 0 0 25.5.5a.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.7 4.9a.2.2 0 0 0-.1.1C1.6 18.1-.9 31 .3 43.6a.2.2 0 0 0 .1.2 58.8 58.8 0 0 0 17.7 8.9.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.3 23.9 5.3 35.3 0a.2.2 0 0 1 .2 0l1.1.9a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.7 58.7 0 0 0 17.7-8.9.2.2 0 0 0 .1-.2c1.5-15.3-2.5-28.1-10.4-39.6a.2.2 0 0 0-.1-.1zM23.7 36c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.4 3.2 6.3 7.2 0 4-2.8 7.2-6.3 7.2zm23.5 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.4 3.2 6.3 7.2 0 4-2.7 7.2-6.3 7.2z"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:15px;font-weight:700;color:#eef2f7;">Join the Community</div>
+            <div style="font-size:13px;color:#8d99ab;margin-top:2px;">Tips, updates, price discussions, and support</div>
+          </div>
+        </div>
+        <button onclick="window.electronAPI?.openExternal('https://discord.gg/D6t2n6VQHb')"
+          style="padding:9px 22px;background:#4752C4;border:1px solid #5865F2;color:#ffffff;
+          border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
+          transition:background 0.15s;"
+          onmouseover="this.style.background='#5865F2'" onmouseout="this.style.background='#4752C4'">
+          Join Discord →
+        </button>
       </div>
     </div>
   `;
@@ -446,60 +513,93 @@ function renderArcPointsCard() {
 
 // ─── ADDON STATUS ────────────────────────────────────────────────────────────
 
-let _addonStatus = null; // null = not checked yet, {} = checked
+const ADDON_PATH_KEY = 'addonInstallPath';
+
+let _addonStatus    = null;  // null = not checked yet
+let _addonChecked   = false; // true once we've run at least one check
 
 async function loadAddonStatus() {
   if (!window.electronAPI?.checkAddonStatus) return;
-  const result = await window.electronAPI.checkAddonStatus();
+
+  // Check the saved custom path first (if user picked one before),
+  // then fall back to the default Documents/ArcheRage/Addon path.
+  const savedPath = localStorage.getItem(ADDON_PATH_KEY) || null;
+  const result = await window.electronAPI.checkAddonStatus(savedPath ? { targetBase: savedPath } : undefined);
+
+  _addonChecked = true;
   if (result?.ok) {
     _addonStatus = result.status;
-    // Only re-render if something is missing
-    const anyMissing = Object.values(result.status).some(s => s.bundledExists && !s.installed);
-    if (anyMissing) window.renderCurrentPage?.();
+    window.renderCurrentPage?.();
   }
 }
 
 function renderAddonBanner() {
-  if (!_addonStatus) { loadAddonStatus(); return ''; }
+  // First render — kick off the check, show nothing yet
+  if (!_addonChecked) { loadAddonStatus(); return ''; }
+  if (!_addonStatus)  return '';
 
   const LABELS = { ahscanner: 'AH Scanner', invscanner: 'Inventory Scanner' };
-  const missing = Object.entries(_addonStatus)
-    .filter(([, s]) => s.bundledExists && !s.installed)
-    .map(([name]) => name);
+
+  // Show banner for any addon that isn't installed — regardless of whether
+  // bundledExists is true. bundledExists can be false in some packaged builds
+  // depending on the install path, but the user still needs the addons.
+  const missing  = Object.entries(_addonStatus).filter(([, s]) => !s.installed).map(([n]) => n);
+  const canInstall = missing.some(n => _addonStatus[n].bundledExists);
 
   if (!missing.length) return '';
+
+  const savedPath = localStorage.getItem(ADDON_PATH_KEY);
+  const pathLine  = savedPath
+    ? `<div style="font-size:11px;color:#566174;margin-top:4px;">Checked: ${escapeHtml(savedPath)}</div>`
+    : '';
 
   const list = missing.map(n => `<strong>${LABELS[n] || n}</strong>`).join(' and ');
 
   return `
-    <div class="card" style="border-color:#2d5a8a;background:linear-gradient(135deg,#1a2535,#111d2e);margin-bottom:0;">
+    <div class="card" style="border-color:#c0392b;background:linear-gradient(135deg,#2a1a1a,#1a0f0f);margin-bottom:0;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
         <div>
-          <div style="font-weight:700;color:#93c5fd;margin-bottom:4px;">Addon Setup</div>
+          <div style="font-weight:700;color:#f87171;margin-bottom:4px;">⚠ Addons Not Found</div>
           <div style="font-size:13px;color:#8d99ab;">
             ${list} ${missing.length > 1 ? 'are' : 'is'} not installed in your ArcheRage addon folder.
-            Install now to enable in-game scanning.
+            ${canInstall
+              ? `Click <strong style="color:#93c5fd;">Install Addons</strong> and select your
+                 <code style="background:#0f1923;padding:1px 5px;border-radius:4px;">Documents\ArcheRage\Addon</code> folder.`
+              : `Select your <code style="background:#0f1923;padding:1px 5px;border-radius:4px;">Documents\ArcheRage\Addon</code> folder to install them.`
+            }
           </div>
+          ${pathLine}
         </div>
-        <button onclick="window.installAddons()"
-          style="padding:8px 20px;background:#1a3a5a;border:1px solid #2d5a8a;color:#93c5fd;
-          border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
-          Install Addons
-        </button>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button onclick="window.installAddons()"
+            style="padding:8px 20px;background:#3a1a1a;border:1px solid #c0392b;color:#f87171;
+            border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
+            Install Addons
+          </button>
+          <button onclick="window.recheckAddons()"
+            style="padding:8px 14px;background:#1e2535;border:1px solid #2a3a52;color:#566174;
+            border-radius:8px;font-size:12px;cursor:pointer;white-space:nowrap;">
+            Re-check
+          </button>
+        </div>
       </div>
     </div>
   `;
 }
 
-const ADDON_PATH_KEY = 'addonInstallPath';
+window.recheckAddons = async function() {
+  _addonStatus  = null;
+  _addonChecked = false;
+  window.renderCurrentPage?.();
+};
 
 window.installAddons = async function() {
   const btn = event?.target;
 
-  // Open folder picker — default to saved path or the standard ArcheRage location
+  // Open folder picker — default to saved path or standard ArcheRage location
   const savedPath = localStorage.getItem(ADDON_PATH_KEY) || null;
   const picked = await window.electronAPI?.pickFolder({ defaultPath: savedPath });
-  if (!picked?.ok || !picked.path) return; // user cancelled
+  if (!picked?.ok || !picked.path) return; // cancelled
 
   const targetBase = picked.path;
   localStorage.setItem(ADDON_PATH_KEY, targetBase);
@@ -515,14 +615,14 @@ window.installAddons = async function() {
 
   const failed = Object.entries(result.results).filter(([, r]) => !r.ok);
   if (failed.length) {
-    alert('Some addons failed to install:\n' + failed.map(([n, r]) => `${n}: ${r.error}`).join('\n'));
-  } else {
-    alert(`Addons installed to:\n${targetBase}`);
+    alert('Some addons failed:\n' + failed.map(([n, r]) => `${n}: ${r.error}`).join('\n'));
   }
 
-  // Re-check status using the same path
-  _addonStatus = null;
+  // Re-check at the path they just chose
+  _addonStatus  = null;
+  _addonChecked = false;
   const check = await window.electronAPI?.checkAddonStatus({ targetBase });
+  _addonChecked = true;
   if (check?.ok) _addonStatus = check.status;
   window.renderCurrentPage?.();
 };
@@ -553,8 +653,6 @@ export function renderLandingPage() {
   startLandingRefresh();
 
   return `
-    ${renderAddonBanner()}
-
     ${renderUserCard()}
 
     <div class="card" style="padding:16px 20px;">
@@ -566,6 +664,8 @@ export function renderLandingPage() {
 
     ${renderNewsFeed()}
 
+    ${renderDiscordCard()}
+
     ${!isPro ? renderProPitch() : ''}
 
     ${renderArcPointsCard()}
@@ -575,6 +675,75 @@ export function renderLandingPage() {
 }
 
 // ─── HANDLERS ─────────────────────────────────────────────────────────────────
+
+window.showCreditsDonateModal = function() {
+  document.getElementById('credits-donate-modal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'credits-donate-modal';
+  modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.65);
+    display:flex;align-items:center;justify-content:center;z-index:9999;`;
+
+  modal.innerHTML = `
+    <div style="background:#1a2535;border:1px solid #2a4a2a;border-radius:14px;
+      padding:28px;width:440px;max-width:95vw;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <h3 style="margin:0;color:#86efac;">Get Pro with In-Game Credits</h3>
+        <button onclick="document.getElementById('credits-donate-modal')?.remove()"
+          style="background:none;border:none;color:#566174;font-size:18px;cursor:pointer;line-height:1;">✕</button>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:22px;">
+
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:26px;height:26px;border-radius:50%;background:#1a3a1a;border:1px solid #86efac;
+            display:flex;align-items:center;justify-content:center;flex-shrink:0;
+            font-size:13px;font-weight:700;color:#86efac;">1</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Mail 2,000 Credits in-game</div>
+            <div style="font-size:13px;color:#8d99ab;">Open the in-game mail and send <strong style="color:#86efac;">2,000 Credits</strong> to character <strong style="color:#eef2f7;">Ashkan</strong>.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:26px;height:26px;border-radius:50%;background:#1a3a1a;border:1px solid #86efac;
+            display:flex;align-items:center;justify-content:center;flex-shrink:0;
+            font-size:13px;font-weight:700;color:#86efac;">2</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Message me on Discord</div>
+            <div style="font-size:13px;color:#8d99ab;">Send a Discord message to <strong style="color:#93c5fd;">Sean6774</strong> letting me know you sent the credits and include your Discord username so I can activate your Pro access.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:26px;height:26px;border-radius:50%;background:#1a3a1a;border:1px solid #86efac;
+            display:flex;align-items:center;justify-content:center;flex-shrink:0;
+            font-size:13px;font-weight:700;color:#86efac;">3</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Wait for activation</div>
+            <div style="font-size:13px;color:#8d99ab;">Pro will be activated within <strong style="color:#ffd166;">1 hour</strong> of me seeing your message. Sign out and back in once activated to refresh your status.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button onclick="window.electronAPI?.openExternal('https://discord.gg/D6t2n6VQHb');document.getElementById('credits-donate-modal')?.remove();"
+          style="flex:1;padding:10px;background:#1a1a3a;border:1px solid #5865F2;color:#93c5fd;
+          border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;">
+          Open Discord →
+        </button>
+        <button onclick="document.getElementById('credits-donate-modal')?.remove()"
+          style="flex:1;padding:10px;background:#1e2535;border:1px solid #2a3a52;color:#566174;
+          border-radius:8px;cursor:pointer;font-size:13px;">
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+};
 
 window.setLandingText = function(value) {
   saveLandingText(value);

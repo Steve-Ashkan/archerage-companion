@@ -413,26 +413,33 @@ local function OnAuctionItemSearched()
     waitingForResult = false
 
     local count = X2Auction:GetSearchedItemCount()
+
     if count and count > 0 then
-        local itemInfo = X2Auction:GetSearchedItemInfo(1)
-        if itemInfo then
-            local copper = tonumber(itemInfo.bidPriceStr) or 0
-            if copper > 0 then
-                local ts = os.time()
-                scanResults[scanCurrentItem] = {
-                    price     = copper,
-                    timestamp = ts
-                }
-                -- Also update savedPrices so GetAgeString reflects it immediately
-                savedPrices[scanCurrentItem] = {
-                    price     = CopperToGold(copper),
-                    timestamp = ts
-                }
-                local gold = CopperToGold(copper)
-                SetStatus(string.format("✓ %.4fg", gold), 0.2, 1.0, 0.4)
-            else
-                SetStatus("No price data", 0.6, 0.6, 0.6)
+        -- Iterate all results; find cheapest per-item buyout that exactly matches item name.
+        -- AH search is substring-based, so "Lucky Sunpoint" can return "Lucky Sunpoint Shard".
+        -- directPriceStr = total buyout for the stack listing (not per-item).
+        -- Divide by stack size to get the actual per-item price.
+        local bestCopper = nil
+        for i = 1, count do
+            local info = X2Auction:GetSearchedItemInfo(i)
+            if info and info.name == scanCurrentItem then
+                local totalCopper = tonumber(info.directPriceStr) or 0
+                local stackSize   = math.max(1, tonumber(info.stack) or 1)
+                local perItem     = totalCopper / stackSize
+                if perItem > 0 and (bestCopper == nil or perItem < bestCopper) then
+                    bestCopper = perItem
+                end
             end
+        end
+
+        if bestCopper and bestCopper > 0 then
+            local ts = os.time()
+            scanResults[scanCurrentItem] = { price = bestCopper, timestamp = ts }
+            savedPrices[scanCurrentItem] = { price = CopperToGold(bestCopper), timestamp = ts }
+            local gold = CopperToGold(bestCopper)
+            SetStatus(string.format("OK %.4fg", gold), 0.2, 1.0, 0.4)
+        else
+            SetStatus("No exact match", 0.6, 0.6, 0.6)
         end
     else
         SetStatus("No listings", 0.5, 0.5, 0.5)
@@ -609,7 +616,34 @@ local function EnteredWorld()
         local msg = string.lower(message or "")
         local raw = message or ""
 
-        if msg == "!scan" then
+        if msg == "!scandump" then
+            -- Debug: dump NUMERIC fields only with their values
+            local count = X2Auction:GetSearchedItemCount()
+            X2Chat:DispatchChatMessage(CMF_SYSTEM,
+                "[AHScanner] Result count: " .. tostring(count))
+            if count and count > 0 then
+                local info = X2Auction:GetSearchedItemInfo(1)
+                if info then
+                    X2Chat:DispatchChatMessage(CMF_SYSTEM, "-- Numeric fields --")
+                    for k, v in pairs(info) do
+                        if type(v) == "number" or tonumber(v) ~= nil then
+                            X2Chat:DispatchChatMessage(CMF_SYSTEM,
+                                "  [" .. tostring(k) .. "] = " .. tostring(v))
+                        end
+                    end
+                    X2Chat:DispatchChatMessage(CMF_SYSTEM, "-- String fields --")
+                    for k, v in pairs(info) do
+                        if type(v) == "string" and tonumber(v) == nil then
+                            X2Chat:DispatchChatMessage(CMF_SYSTEM,
+                                "  [" .. tostring(k) .. "] = " .. tostring(v))
+                        end
+                    end
+                else
+                    X2Chat:DispatchChatMessage(CMF_SYSTEM, "  info is nil")
+                end
+            end
+
+        elseif msg == "!scan" then
             -- Smart scan: skip items scanned within maxAgeDays
             StartScan(false)
 

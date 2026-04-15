@@ -111,8 +111,10 @@ export async function login() {
 
     window.electronAPI.onOAuthCallback(async (callbackUrl) => {
       clearTimeout(timeout);
+      console.log('[auth] onOAuthCallback fired, URL:', callbackUrl?.slice(0, 80));
       try {
         const result = await window.electronAPI.handleOAuthCallback(callbackUrl);
+        console.log('[auth] handleOAuthCallback result:', JSON.stringify(result)?.slice(0, 200));
         if (!result?.ok) {
           resolve({ ok: false, error: result?.error || 'OAuth callback failed' });
           return;
@@ -125,10 +127,12 @@ export async function login() {
           user:       auth.user       || null,
           proExpires: auth.proExpires || null,
         };
+        console.log('[auth] _auth set, user:', _auth.user?.name, 'role:', _auth.role);
         // Notify app to rebuild UI
         window.__onAuthChange?.(_auth);
         resolve({ ok: true });
       } catch(e) {
+        console.error('[auth] onOAuthCallback error:', e.message);
         resolve({ ok: false, error: e.message });
       }
     });

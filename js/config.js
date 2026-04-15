@@ -28,6 +28,8 @@ export const CONFIG = {
 
   // ── Dev Overrides ─────────────────────────────────────────────────────────
   // For local testing only. NEVER ship with DEV_FORCE_PRO: true.
-  DEV_FORCE_PRO: false,  // ← flip to false before distributing
+  // Note: flipping this in a distributed build only bypasses client-side UI gating.
+  // All privileged IPC handlers enforce role server-side via enforceRole() regardless.
+  DEV_FORCE_PRO: false,  // ← must be false before distributing
   DEV_ROLE:      'dev',  // role used when DEV_FORCE_PRO is true
 };

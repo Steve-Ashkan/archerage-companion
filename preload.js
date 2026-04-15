@@ -2,6 +2,9 @@ try {
   const { ipcRenderer } = require('electron');
 
   window.electronAPI = {
+    // ── Shell ─────────────────────────────────────────────────────────────
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
     // ── File I/O ──────────────────────────────────────────────────────────
     readAHCsv:         ()      => ipcRenderer.invoke('read-ah-csv'),
     readScanItems:     ()      => ipcRenderer.invoke('read-scan-items'),
@@ -20,7 +23,10 @@ try {
     clearToken: ()      => ipcRenderer.invoke('clear-token'),
 
     // Listen for OAuth deep link callback sent from main process
-    onOAuthCallback: (cb) => ipcRenderer.on('oauth-callback', (e, url) => cb(url)),
+    onOAuthCallback: (cb) => {
+      ipcRenderer.removeAllListeners('oauth-callback');
+      ipcRenderer.once('oauth-callback', (e, url) => cb(url));
+    },
 
     // ── Community Prices ──────────────────────────────────────────────────────
     getCommunityPrices:         ()               => ipcRenderer.invoke('get-community-prices'),
@@ -81,10 +87,22 @@ try {
     recipeAdminGet:         ()     => ipcRenderer.invoke('recipe-admin-get-submissions'),
     recipeAdminApprove:     (opts) => ipcRenderer.invoke('recipe-admin-approve', opts),
     recipeAdminReject:      (opts) => ipcRenderer.invoke('recipe-admin-reject', opts),
+    recipeGetApproved:      ()     => ipcRenderer.invoke('recipe-get-approved'),
+
+    // ── Crowdsourced Prices / Inventory ──────────────────────────────────────
+    addToScanList:             (itemName) => ipcRenderer.invoke('add-to-scan-list', { itemName }),
+    submitInventory:           (items)    => ipcRenderer.invoke('submit-inventory', items),
+    submitAuthoritativePrices: (items)    => ipcRenderer.invoke('submit-authoritative-prices', items),
+    getPendingPriceItems:      ()         => ipcRenderer.invoke('get-pending-price-items'),
+
+    // ── DevTools access (unlocked server-side for curator+ roles) ────────
+    requestDevTools: () => ipcRenderer.invoke('request-devtools'),
 
     // ── Auto-updater ──────────────────────────────────────────────────────
-    installUpdate:  ()   => ipcRenderer.invoke('install-update'),
-    onUpdateReady:  (cb) => ipcRenderer.on('update-ready', (e, version) => cb(version)),
+    installUpdate:   ()   => ipcRenderer.invoke('install-update'),
+    checkForUpdate:  ()   => ipcRenderer.invoke('check-for-update'),
+    onUpdateReady:   (cb) => ipcRenderer.on('update-ready',  (e, version) => cb(version)),
+    onUpdateError:   (cb) => ipcRenderer.on('update-error',  (e, msg)     => cb(msg)),
   };
 
   console.log('[preload] electronAPI loaded OK');
