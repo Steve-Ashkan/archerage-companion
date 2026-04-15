@@ -27,6 +27,8 @@ import { renderPage as renderAddonsPage } from "./pages/addons.js";
 import { renderLoginPage } from "./pages/login.js";
 import { renderPage as renderRecipeLookupPage } from "./pages/recipeLookup.js";
 import { renderPage as renderArcPointsPage } from "./pages/arcPoints.js";
+import { renderPage as renderChecklistPage } from "./pages/checklist.js";
+import { renderPage as renderTimersPage, initTimersPage } from "./pages/timers.js";
 import { renderPage as renderSubmitRecipePage, initSubmitRecipe } from "./pages/submitRecipe.js";
 import { renderPage as renderProficiencyPage } from "./pages/proficiency.js";
 import { setupCommunityPrices } from "./communityPrices.js";
@@ -59,6 +61,8 @@ const PAGE_REGISTRY = {
   warriorNecklace: { render: renderWarriorNecklacePage,  inject: true  },
   recipeLookup:    { render: renderRecipeLookupPage,     inject: true  },
   arcPoints:       { render: renderArcPointsPage,        inject: true  },
+  checklist:       { render: renderChecklistPage,        inject: true  },
+  timers:          { render: renderTimersPage,           inject: true,  afterRender: initTimersPage },
   proficiency:     { render: renderProficiencyPage,      inject: true  },
   submitRecipe:    { render: renderSubmitRecipePage,     inject: true,  afterRender: initSubmitRecipe },
   devPanel:        { render: renderDevPanelPage,         inject: true,  afterRender: initDevPanel },

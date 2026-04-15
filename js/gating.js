@@ -33,6 +33,8 @@ export const PAGES = [
 
   // ── Tools ─────────────────────────────────────────────────────────────────
   { id: "addons",          label: "Addons",               group: "tools" },
+  { id: "checklist",      label: "Daily Checklist",      group: "tools" },
+  { id: "timers",         label: "Timers",               group: "tools" },
   { id: "trimmer",         label: "Multipurpose Trimmer", group: "tools" },
   { id: "achievements",    label: "Achievements",         group: "tools" },
   { id: "costumeBuilder",  label: "Costume Builder",      group: "tools" },
