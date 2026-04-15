@@ -300,10 +300,6 @@ if (requiresPro(appState.currentPage) && appState.user?.role !== 'pro') {
 1. **electron-builder `.exe` packaging** with JS obfuscation
 2. **Recipe Lookup data verification** — page exists but gated dev-only; scraped data has errors, needs in-game verification before opening to pro users
 
-### MEDIUM PRIORITY
-3. **Event timer data verification** against sadly.io
-4. **Inventory page** — data layer exists, page not built yet
-
 ### DONE
 - ✅ Bank/Guild/Coffer scan — fixed by Sparkle 2026-04-14
 - ✅ Backend auth — Discord OAuth + Supabase + role system
@@ -311,6 +307,8 @@ if (requiresPro(appState.currentPage) && appState.user?.role !== 'pro') {
 - ✅ Crowdsourced price database
 - ✅ ARC Points system
 - ✅ Recipe Lookup page (dev-only pending data verification)
+- ✅ Inventory page — built
+- ✅ Event timer data — verified
 
 ---
 
