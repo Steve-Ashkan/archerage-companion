@@ -159,6 +159,31 @@ function renderUserCard() {
         `}
       </div>
     </div>
+
+    ${!user ? `
+    <div style="margin-top:10px;padding:14px 18px;background:#0d1520;border:1px solid #1a2a3a;
+      border-radius:10px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <span style="font-size:16px;">🔒</span>
+        <span style="font-size:12px;font-weight:700;color:#93c5fd;letter-spacing:0.04em;text-transform:uppercase;">Privacy Protected</span>
+      </div>
+      <div style="flex:1;display:flex;gap:16px;flex-wrap:wrap;">
+        ${[
+          ['👤', 'Username &amp; avatar only', 'We never see your email — Discord OAuth gives us your display name and profile picture, nothing else.'],
+          ['🚫', 'Zero email access',          'We don\'t request it, we don\'t receive it, and we don\'t store it. Not in our database, not anywhere.'],
+          ['🔑', 'No passwords',               'Discord handles authentication entirely. Your credentials never touch this app.'],
+        ].map(([icon, title, desc]) => `
+          <div style="display:flex;align-items:flex-start;gap:8px;min-width:180px;flex:1;">
+            <span style="font-size:14px;margin-top:1px;flex-shrink:0;">${icon}</span>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:#cbd5e1;margin-bottom:2px;">${title}</div>
+              <div style="font-size:11px;color:#394252;line-height:1.5;">${desc}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
   `;
 }
 
