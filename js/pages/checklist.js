@@ -29,6 +29,7 @@ function defaultItems() {
     { text: 'Castles',             desc: 'Whatever castles you own — do all 3 quests: Pack, Kill Quest, Silo.' },
     { text: 'Specimen Dailies' },
     { text: 'Akasch Eggs',         desc: 'Location: Titan\'s Maw.' },
+    { text: 'Ethereal Haven' },
     { text: 'Akasch Merchant',     desc: 'Cragtear Scars: Talk to Laffi.' },
     { text: 'Nuia Dailies',        desc: 'The Merciful Priest (accept & turn in) · Away From the Mad World (10 Stone Brick) · Be at Peace with Yourself (100 Lilies).' },
     { text: 'Guild Missions',      desc: 'Shift+T (default) → Missions.' },
