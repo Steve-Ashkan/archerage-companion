@@ -80,31 +80,23 @@ export function renderPage() {
         ${tabs.map(t => {
           const isActive = t.id === (getActive()?.id);
           return `
-            <div style="display:flex;align-items:center;gap:0;">
+            <div style="display:flex;align-items:center;gap:4px;">
               <button onclick="window.checklistSetTab('${t.id}')"
-                style="padding:7px 16px;border-radius:8px 0 0 8px;font-size:13px;font-weight:600;cursor:pointer;
+                style="padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
                 background:${isActive ? '#1a2535' : '#0f1520'};
                 border:1px solid ${isActive ? '#2d5a8a' : '#1e2535'};
-                color:${isActive ? '#93c5fd' : '#566174'};
-                border-right:none;">
+                color:${isActive ? '#93c5fd' : '#566174'};">
                 ${escHtml(t.name)}
               </button>
               <button onclick="window.checklistRenameTab('${t.id}')"
-                style="padding:7px 8px;background:${isActive ? '#1a2535' : '#0f1520'};
-                border:1px solid ${isActive ? '#2d5a8a' : '#1e2535'};
-                color:${isActive ? '#566174' : '#394252'};
-                font-size:11px;cursor:pointer;border-left:none;border-right:none;">
-                ✎
-              </button>
+                title="Rename"
+                style="padding:5px 8px;background:#0f1520;border:1px solid #1e2535;
+                color:#394252;font-size:11px;cursor:pointer;border-radius:6px;">✎</button>
               ${tabs.length > 1 ? `
               <button onclick="window.checklistRemoveTab('${t.id}')"
-                style="padding:7px 8px;background:${isActive ? '#1a2535' : '#0f1520'};
-                border:1px solid ${isActive ? '#2d5a8a' : '#1e2535'};
-                color:#f87171;font-size:11px;cursor:pointer;border-radius:0 8px 8px 0;border-left:none;">
-                ✕
-              </button>` : `
-              <div style="padding:7px 8px;background:${isActive ? '#1a2535' : '#0f1520'};
-                border:1px solid ${isActive ? '#2d5a8a' : '#1e2535'};border-left:none;border-radius:0 8px 8px 0;width:28px;"></div>`}
+                title="Remove tab"
+                style="padding:5px 8px;background:#0f1520;border:1px solid #1e2535;
+                color:#5a2a2a;font-size:11px;cursor:pointer;border-radius:6px;">✕</button>` : ''}
             </div>
           `;
         }).join('')}
