@@ -8,7 +8,13 @@ export function escapeHtml(value) {
 }
 
 export function jsEscape(value) {
-  return String(value).replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+  return String(value)
+    .replaceAll("\\", "\\\\")
+    .replaceAll("'", "\\'")
+    .replaceAll('"', '\\"')
+    .replaceAll("`", "\\`")
+    .replaceAll("\n", "\\n")
+    .replaceAll("\r", "\\r");
 }
 
 export function formatGold(value) {

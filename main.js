@@ -540,6 +540,8 @@ ipcMain.handle('admin-set-role', async (event, { userId, role }) => {
   // userId is discord_id
   try {
     await enforceRole('admin');
+    const VALID_ROLES = ['free', 'pro', 'curator', 'staff', 'admin', 'dev'];
+    if (!VALID_ROLES.includes(role)) return { ok: false, error: 'Invalid role' };
     const { error } = await supabaseAdmin.from('profiles').update({ role }).eq('discord_id', userId);
     if (error) return { ok: false, error: error.message };
     return { ok: true };
@@ -550,8 +552,10 @@ ipcMain.handle('admin-grant-pro', async (event, { userId, days }) => {
   // userId is discord_id
   try {
     await enforceRole('admin');
+    const daysNum = parseInt(days, 10);
+    if (isNaN(daysNum) || daysNum < 1 || daysNum > 3650) return { ok: false, error: 'Days must be 1–3650' };
     const expires = new Date();
-    expires.setDate(expires.getDate() + parseInt(days, 10));
+    expires.setDate(expires.getDate() + daysNum);
     const { error } = await supabaseAdmin.from('profiles')
       .update({ role: 'pro', pro_expires_at: expires.toISOString() })
       .eq('discord_id', userId);
@@ -837,7 +841,7 @@ ipcMain.handle('arc-submit-redemption', async (event, { rewardId, rewardLabel, p
 ipcMain.handle('arc-get-all-redemptions', async () => {
   try {
     await enforceRole('admin');
-    const { data, error } = await supabase.rpc('get_pending_redemptions');
+    const { data, error } = await supabaseAdmin.rpc('get_pending_redemptions');
     if (error) return { ok: false, error: error.message };
     return { ok: true, redemptions: data || [] };
   } catch(e) { return { ok: false, error: e.message }; }
@@ -1081,7 +1085,7 @@ ipcMain.handle('recipe-admin-approve', async (event, { id, output, outputQty, pr
 ipcMain.handle('recipe-admin-reject', async (event, { id, feedback }) => {
   try {
     await enforceRole('curator');
-    const { error } = await supabase.from('recipe_submissions')
+    const { error } = await supabaseAdmin.from('recipe_submissions')
       .update({ status: 'rejected', feedback: feedback || null, reviewed_at: new Date().toISOString() })
       .eq('id', id);
     if (error) return { ok: false, error: error.message };
@@ -1097,9 +1101,9 @@ ipcMain.handle('recipe-get-approved', async () => {
       .select('id, output, output_qty, profession, labor, materials, notes')
       .eq('status', 'approved')
       .order('reviewed_at', { ascending: false });
-    if (error) return { ok: false, recipes: [] };
+    if (error) return { ok: false, recipes: [], error: error.message };
     return { ok: true, recipes: data || [] };
-  } catch(e) { return { ok: false, recipes: [] }; }
+  } catch(e) { return { ok: false, recipes: [], error: e.message }; }
 });
 
 // ─── WINDOW ───────────────────────────────────────────────────────────────────
