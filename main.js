@@ -5,6 +5,25 @@ const fs   = require('fs');
 const os   = require('os');
 const { createClient } = require('@supabase/supabase-js');
 
+// ─── ENV LOADER ───────────────────────────────────────────────────────────────
+// Reads .env from next to main.js (dev) or resources/ (packaged build).
+// No dotenv dependency — plain file parse.
+(function loadEnv() {
+  try {
+    const envPath = app.isPackaged
+      ? path.join(process.resourcesPath, '.env')
+      : path.join(__dirname, '.env');
+    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+      const eq = line.indexOf('=');
+      if (eq > 0) {
+        const k = line.slice(0, eq).trim();
+        const v = line.slice(eq + 1).trim();
+        if (k && !(k in process.env)) process.env[k] = v;
+      }
+    });
+  } catch { /* .env not found — fall through to process.env */ }
+})();
+
 // ─── SUPABASE CLIENT ──────────────────────────────────────────────────────────
 const SUPABASE_URL      = 'https://ywkyhtvfdbtybevggonb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_vLgj1WUM3-mws4c-ahwDWQ_xUmfjRPF';
@@ -14,10 +33,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-// Service role — for privileged writes and user-specific reads.
-// This key bypasses RLS. main.js is the trusted process so this is acceptable.
-// Get from: Supabase dashboard → Settings → API → service_role (secret)
-const SUPABASE_SERVICE_KEY = 'sb_secret_dL11QnulhY6R7um5JyYI1Q_Q92_w-Br';
+// Service role — loaded from .env, never hardcoded in source.
+// Bypasses RLS. main.js is the trusted process so this is acceptable.
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
