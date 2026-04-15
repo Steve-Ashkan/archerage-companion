@@ -39,7 +39,7 @@ export const PAGES = [
   { id: "proficiency",     label: "Proficiency",          group: "tools" },
   { id: "submitRecipe",    label: "Submit a Recipe",      group: "tools" },
   { id: "recipeLookup",    label: "Recipe Lookup",        group: "pro",   minRole: "pro" },
-  { id: "arcPoints",       label: "ARC Points",           group: "tools", minRole: "dev" },
+  { id: "arcPoints",       label: "ARC Points",           group: "tools" },
 
   // ── Pro ───────────────────────────────────────────────────────────────────
   { id: "netWorth",        label: "Net Worth",            group: "pro",   minRole: "pro"  },

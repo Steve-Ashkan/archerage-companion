@@ -118,12 +118,6 @@ export function renderPage() {
   loadHistory();
 
   return `
-    <!-- Dev Banner -->
-    <div style="background:#1a1a2e;border:1px solid #4a3a8a;border-radius:10px;
-      padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
-      <span style="color:#a78bfa;font-size:13px;">🔬 Dev Preview — this page is only visible to you</span>
-    </div>
-
     <!-- Header + Balance -->
     <div class="card" style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;">

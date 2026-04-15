@@ -736,10 +736,19 @@ ipcMain.handle('wiki-admin-get-submissions', async () => {
 ipcMain.handle('wiki-admin-approve', async (event, { id }) => {
   try {
     await enforceRole('curator');
+    // Fetch submitter before updating so we can award points
+    const { data: sub } = await supabaseAdmin.from('wiki_submissions')
+      .select('submitter_discord_id')
+      .eq('id', id)
+      .single();
     const { error } = await supabaseAdmin.from('wiki_submissions')
       .update({ status: 'approved', reviewed_at: new Date().toISOString() })
       .eq('id', id);
     if (error) return { ok: false, error: error.message };
+    // Award 25 ARC Points for an approved wiki article
+    if (sub?.submitter_discord_id) {
+      await awardArcPoints(sub.submitter_discord_id, 25, 'wiki_approved', String(id));
+    }
     return { ok: true };
   } catch(e) { return { ok: false, error: e.message }; }
 });
@@ -762,6 +771,21 @@ ipcMain.handle('wiki-get-news', async () => {
     return { ok: true, articles: data || [] };
   } catch(e) { return { ok: false, error: e.message }; }
 });
+
+// ─── ARC POINTS HELPER ───────────────────────────────────────────────────────
+
+async function awardArcPoints(discordId, points, actionType, referenceId = null) {
+  try {
+    await supabaseAdmin.rpc('award_arc_points', {
+      p_discord_id:   discordId,
+      p_points:       points,
+      p_action_type:  actionType,
+      p_reference_id: referenceId ? String(referenceId) : null,
+    });
+  } catch (e) {
+    console.error('[arc] awardArcPoints failed:', e.message);
+  }
+}
 
 // ─── IPC: ARC POINTS ─────────────────────────────────────────────────────────
 
@@ -790,7 +814,11 @@ ipcMain.handle('arc-submit-redemption', async (event, { rewardId, rewardLabel, p
     // discord_id comes from the verified session — never trust the client to supply it
     const session = loadSession();
     if (!session?.discordId) return { ok: false, error: 'Not authenticated' };
-    const { error } = await supabaseAdmin.from('arc_redemptions').insert({
+    // Server-side balance check
+    const { data: balance } = await supabaseAdmin.rpc('get_my_points', { p_discord_id: session.discordId });
+    if ((balance || 0) < pointsSpent) return { ok: false, error: 'Insufficient ARC Points' };
+    // Insert redemption record
+    const { data: redemption, error } = await supabaseAdmin.from('arc_redemptions').insert({
       discord_id:   session.discordId,
       reward_id:    rewardId,
       reward_label: rewardLabel,
@@ -798,8 +826,10 @@ ipcMain.handle('arc-submit-redemption', async (event, { rewardId, rewardLabel, p
       ign_snapshot: ignSnapshot || null,
       discord_name: discordName || null,
       recipient_id: recipientId || null,
-    });
+    }).select('id').single();
     if (error) return { ok: false, error: error.message };
+    // Deduct points immediately (refunded if cancelled)
+    await awardArcPoints(session.discordId, -pointsSpent, 'redemption', String(redemption.id));
     return { ok: true };
   } catch(e) { return { ok: false, error: e.message }; }
 });
@@ -827,10 +857,19 @@ ipcMain.handle('arc-fulfill-redemption', async (event, { id, notes }) => {
 ipcMain.handle('arc-cancel-redemption', async (event, { id }) => {
   try {
     await enforceRole('admin');
+    // Fetch redemption details to refund the points
+    const { data: r } = await supabaseAdmin.from('arc_redemptions')
+      .select('discord_id, points_spent, status')
+      .eq('id', id)
+      .single();
     const { error } = await supabaseAdmin.from('arc_redemptions')
       .update({ status: 'cancelled' })
       .eq('id', id);
     if (error) return { ok: false, error: error.message };
+    // Refund points if it was still pending (pending means points were already deducted)
+    if (r?.discord_id && r?.status === 'pending') {
+      await awardArcPoints(r.discord_id, r.points_spent, 'refund', String(id));
+    }
     return { ok: true };
   } catch(e) { return { ok: false, error: e.message }; }
 });
@@ -1013,7 +1052,12 @@ ipcMain.handle('recipe-admin-get-submissions', async () => {
 ipcMain.handle('recipe-admin-approve', async (event, { id, output, outputQty, profession, labor, materials, notes }) => {
   try {
     await enforceRole('curator');
-    const { error } = await supabase.from('recipe_submissions')
+    // Fetch submitter before updating so we can award points
+    const { data: sub } = await supabaseAdmin.from('recipe_submissions')
+      .select('submitter_discord_id')
+      .eq('id', id)
+      .single();
+    const { error } = await supabaseAdmin.from('recipe_submissions')
       .update({
         status:      'approved',
         output,
@@ -1026,6 +1070,10 @@ ipcMain.handle('recipe-admin-approve', async (event, { id, output, outputQty, pr
       })
       .eq('id', id);
     if (error) return { ok: false, error: error.message };
+    // Award 5 ARC Points for a verified recipe
+    if (sub?.submitter_discord_id) {
+      await awardArcPoints(sub.submitter_discord_id, 5, 'recipe_verified', String(id));
+    }
     return { ok: true };
   } catch(e) { return { ok: false, error: e.message }; }
 });
