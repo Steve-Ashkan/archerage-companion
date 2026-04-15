@@ -186,25 +186,19 @@ local function IsSellable(info)
 end
 ```
 
-### Bank/Guild/Coffer API — BROKEN (server-side bug)
-**Problem:** `X2Bank:GetBagItemInfo(slot, IIK_NAME)` returns the constant value itself, not item data. Same for `X2GuildBank` and `X2Coffer`.
+### Bank/Guild/Coffer API — FIXED (2026-04-14)
+Sparkle fixed the server-side bug. All containers now work.
 
-**Confirmed by:** Player "Nov" on ArcheRage Discord — reported same issue. Ashkan brought it to Sparkle (server owner), who is aware but hasn't fixed it yet.
-
-**Note:** The correct API pattern for bank/guild/coffer is NOT confirmed — do not assume the IIK pattern is correct. Work from Nov's code when implementing.
-
-**What DOES work for bank/guild/coffer:**
-- `X2Bank:CountItems()` ✅
-- `X2Bank:ItemStack(slot)` ✅ — returns correct quantities
-- `X2Bank:GetBagItemInfo(slot, IIK_*)` ❌ — returns the key constant value, not item data
-
-**Action needed:** Wait for Sparkle to fix `GetBagItemInfo` for X2Bank, X2GuildBank, X2Coffer on the server. Then implement using Nov's code as reference.
+**Correct API signatures (1-param form for bank/coffer/guild):**
+- Bag:       `X2Bag:GetBagItemInfo(0, slot)` — 2 params
+- Bank:      `X2Bank:GetBagItemInfo(slot)` — 1 param
+- Coffer:    `X2Coffer:GetBagItemInfo(slot)` — 1 param
+- GuildBank: `X2GuildBank:GetBagItemInfo(slot)` — 1 param
 
 ### Guild Bank Notes
 - 8 cells (tabs), tab switching NOT enabled by server
-- Manual workflow: open each cell → `!scanguild` per cell
-- Results accumulate across calls in same session
-- `!guildreset` clears guild data and resets counter
+- Manual workflow: open each cell → scan per cell
+- Results accumulate across cells in same session
 
 ---
 
@@ -303,18 +297,20 @@ if (requiresPro(appState.currentPage) && appState.user?.role !== 'pro') {
 ## Pending Work
 
 ### HIGH PRIORITY
-1. **Bank/Guild/Coffer scan** — waiting on Sparkle to fix `GetBagItemInfo` server-side; use Nov's code as reference when implementing
-2. **Backend auth server** — Discord OAuth, Supabase, Stripe
-3. **Login screen + gating** in app (free vs pro)
+1. **electron-builder `.exe` packaging** with JS obfuscation
+2. **Recipe Lookup data verification** — page exists but gated dev-only; scraped data has errors, needs in-game verification before opening to pro users
 
 ### MEDIUM PRIORITY
-4. **Recipe lookup system** — "do you have materials to craft X?"
-5. **Crowdsourced price database** — variance threshold system
-6. **Event timer data verification** against sadly.io
+3. **Event timer data verification** against sadly.io
+4. **Inventory page** — data layer exists, page not built yet
 
-### LOW PRIORITY
-7. **electron-builder `.exe` packaging** with JS obfuscation
-8. **Auto-updater** via GitHub Releases
+### DONE
+- ✅ Bank/Guild/Coffer scan — fixed by Sparkle 2026-04-14
+- ✅ Backend auth — Discord OAuth + Supabase + role system
+- ✅ Login screen + gating
+- ✅ Crowdsourced price database
+- ✅ ARC Points system
+- ✅ Recipe Lookup page (dev-only pending data verification)
 
 ---
 
