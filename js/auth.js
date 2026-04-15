@@ -28,17 +28,6 @@ let _auth = { ...DEFAULT_AUTH };
 
 // Call once at startup before rendering anything.
 export async function initAuth() {
-  // Dev override — never ships true
-  if (CONFIG.DEV_FORCE_PRO) {
-    _auth = {
-      isPro:      true,
-      role:       CONFIG.DEV_ROLE || 'dev',
-      user:       { id: 'dev', name: 'Dev', avatar: null },
-      proExpires: null,
-    };
-    return _auth;
-  }
-
   if (!CONFIG.AUTH_ENABLED) {
     _auth = { ...DEFAULT_AUTH };
     return _auth;

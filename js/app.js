@@ -271,10 +271,6 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// Allow dev panel access in dev mode regardless of role
-if (typeof CONFIG !== "undefined" && CONFIG?.DEV_FORCE_PRO) {
-  window.__devPanelUnlocked = true;
-}
 
 initTopButton();
 

@@ -26,10 +26,4 @@ export const CONFIG = {
   SUPABASE_ANON_KEY: "sb_publishable_vLgj1WUM3-mws4c-ahwDWQ_xUmfjRPF",
   // Service role key stays server-side only — never put it here.
 
-  // ── Dev Overrides ─────────────────────────────────────────────────────────
-  // For local testing only. NEVER ship with DEV_FORCE_PRO: true.
-  // Note: flipping this in a distributed build only bypasses client-side UI gating.
-  // All privileged IPC handlers enforce role server-side via enforceRole() regardless.
-  DEV_FORCE_PRO: false,  // ← must be false before distributing
-  DEV_ROLE:      'dev',  // role used when DEV_FORCE_PRO is true
 };
