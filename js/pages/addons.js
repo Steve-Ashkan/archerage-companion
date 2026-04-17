@@ -4,9 +4,11 @@ import { escapeHtml } from '../utils.js';
 
 const ADDON_PATH_KEY = 'addonInstallPath';
 
-let _status   = null;  // { ahscanner: { bundledExists, installed }, invscanner: ... }
-let _checked  = false;
-let _checking = false;
+let _status    = null;  // { ahscanner: { bundledExists, installed }, invscanner: ... }
+let _checked   = false;
+let _checking  = false;
+let _pathValid = null;  // null = unchecked, true = valid, false = invalid
+let _pathReason = null; // reason string if invalid
 
 const ADDONS = {
   ahscanner: {
@@ -33,6 +35,13 @@ function getPath() {
   return localStorage.getItem(ADDON_PATH_KEY) || null;
 }
 
+async function validatePath(p) {
+  if (!p) { _pathValid = false; _pathReason = 'No path selected.'; return; }
+  const result = await window.electronAPI?.validateAddonPath({ targetPath: p });
+  _pathValid  = result?.valid === true;
+  _pathReason = result?.reason || null;
+}
+
 async function checkStatus() {
   if (_checking) return;
   _checking = true;
@@ -51,11 +60,15 @@ async function checkStatus() {
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 
 export function renderPage() {
+  const savedPath = getPath();
+
+  if (_pathValid === null && savedPath) {
+    validatePath(savedPath).then(() => window.renderCurrentPage?.());
+  }
   if (!_checked) {
     checkStatus();
   }
 
-  const savedPath = getPath();
   const defaultPath = 'Documents\\ArcheRage\\Addon';
 
   return `
@@ -69,29 +82,41 @@ export function renderPage() {
       </div>
 
       <!-- Install Path -->
-      <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-          <div>
-            <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
-              color:#566174;margin-bottom:4px;">Addon Install Path</div>
-            <div style="font-size:13px;color:${savedPath ? '#eef2f7' : '#566174'};">
+      <div class="card" style="margin-bottom:16px;${_pathValid === false && savedPath ? 'border-color:#5a3a1a;' : _pathValid === true ? 'border-color:#2a5a2a;' : ''}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+                color:#566174;">Addon Install Path</div>
+              ${savedPath && _pathValid === true
+                ? `<span style="font-size:11px;color:#86efac;background:#0a2a1a;border:1px solid #2a5a2a;
+                    padding:1px 8px;border-radius:10px;">✓ Valid</span>`
+                : savedPath && _pathValid === false
+                ? `<span style="font-size:11px;color:#f97316;background:#1a0f00;border:1px solid #5a3a1a;
+                    padding:1px 8px;border-radius:10px;">⚠ Unrecognized</span>`
+                : ''}
+            </div>
+            <div style="font-size:13px;color:${savedPath ? '#eef2f7' : '#566174'};word-break:break-all;">
               ${savedPath
                 ? `<code style="background:#0f1923;padding:2px 8px;border-radius:5px;font-size:12px;">${escapeHtml(savedPath)}</code>`
-                : `<span>Using default: <code style="background:#0f1923;padding:2px 8px;border-radius:5px;font-size:12px;">${defaultPath}</code></span>`
+                : `<span>No path set — click <strong style="color:#93c5fd;">Select Folder</strong> and choose your <code style="background:#0f1923;padding:2px 6px;border-radius:4px;font-size:12px;">ArcheRage\\Addon</code> folder.</span>`
               }
             </div>
+            ${savedPath && _pathValid === false && _pathReason
+              ? `<div style="font-size:12px;color:#f97316;margin-top:6px;">⚠ ${escapeHtml(_pathReason)}</div>`
+              : ''}
           </div>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;flex-shrink:0;">
             <button onclick="window.addonsPickPath()"
               style="padding:7px 16px;background:#1a2535;border:1px solid #2d5a8a;color:#93c5fd;
               border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
               ${savedPath ? 'Change Path' : 'Select Folder'}
             </button>
-            <button onclick="window.addonsRecheck()"
+            ${savedPath ? `<button onclick="window.addonsRecheck()"
               style="padding:7px 14px;background:#1e2535;border:1px solid #2a3a52;color:#566174;
               border-radius:8px;font-size:13px;cursor:pointer;">
               ${_checking ? 'Checking…' : 'Re-check'}
-            </button>
+            </button>` : ''}
           </div>
         </div>
       </div>
@@ -109,8 +134,12 @@ export function renderPage() {
             </div>
           </div>
           <button onclick="window.addonsInstallAll()"
-            style="padding:9px 22px;background:#3a1a1a;border:1px solid #c0392b;color:#f87171;
-            border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+            ${_pathValid !== true ? 'disabled title="Select a valid ArcheRage Addon folder first"' : ''}
+            style="padding:9px 22px;background:${_pathValid === true ? '#3a1a1a' : '#1a1a1a'};
+            border:1px solid ${_pathValid === true ? '#c0392b' : '#2a2a2a'};
+            color:${_pathValid === true ? '#f87171' : '#394252'};
+            border-radius:8px;font-size:13px;font-weight:700;
+            cursor:${_pathValid === true ? 'pointer' : 'not-allowed'};white-space:nowrap;">
             Install All Addons
           </button>
         </div>
@@ -154,8 +183,12 @@ function renderAddonCard(id, addon) {
           <div style="font-size:13px;color:#8d99ab;">${addon.desc}</div>
         </div>
         <button onclick="window.addonsInstallOne('${id}')"
-          style="padding:7px 18px;background:#1a2535;border:1px solid #2d5a8a;color:#93c5fd;
-          border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+          ${_pathValid !== true ? 'disabled title="Select a valid ArcheRage Addon folder first"' : ''}
+          style="padding:7px 18px;background:${_pathValid === true ? '#1a2535' : '#111920'};
+          border:1px solid ${_pathValid === true ? '#2d5a8a' : '#1e2535'};
+          color:${_pathValid === true ? '#93c5fd' : '#394252'};
+          border-radius:8px;font-size:13px;font-weight:600;
+          cursor:${_pathValid === true ? 'pointer' : 'not-allowed'};white-space:nowrap;flex-shrink:0;">
           ${s?.installed ? 'Reinstall' : 'Install'}
         </button>
       </div>
@@ -176,8 +209,11 @@ window.addonsPickPath = async function() {
   const picked = await window.electronAPI?.pickFolder({ defaultPath: savedPath });
   if (!picked?.ok || !picked.path) return;
   localStorage.setItem(ADDON_PATH_KEY, picked.path);
-  _checked = false;
-  _status  = null;
+  _checked    = false;
+  _status     = null;
+  _pathValid  = null;
+  _pathReason = null;
+  await validatePath(picked.path);
   window.renderCurrentPage?.();
 };
 

@@ -321,13 +321,13 @@ td select {
 
 .tab-toggle-strip {
   flex-basis: 100%;
-  height: 18px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #3d4f64;
-  font-size: 10px;
+  color: #566174;
+  font-size: 14px;
   letter-spacing: 0.05em;
   border-bottom: 1px solid #2a3040;
   user-select: none;
@@ -335,13 +335,21 @@ td select {
 }
 
 .tab-toggle-strip:hover {
-  color: #94a3b8;
-  background: #252c38;
+  color: #eef2f7;
+  background: #2d3748;
 }
 
-/* Slide the tab bar off-screen, leaving only the 18px toggle strip visible */
+/* Slide the tab bar off-screen, leaving only the toggle strip visible */
 .tab-bar.collapsed {
-  transform: translateY(calc(100% - 18px));
+  transform: translateY(calc(100% - 28px));
+}
+
+/* Strip glows amber when collapsed so it's obvious it's clickable */
+.tab-bar.collapsed .tab-toggle-strip {
+  color: #fb923c;
+  background: #1c1610;
+  border-bottom: none;
+  border-top: 1px solid #7c3a10;
 }
 
 /* When collapsed, body only needs padding for the visible strip */

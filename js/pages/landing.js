@@ -392,11 +392,13 @@ function renderProPitch() {
             letter-spacing:0.06em;margin-bottom:6px;">Monthly Sub</div>
           <div style="font-size:22px;font-weight:800;color:#eef2f7;margin-bottom:2px;">$5.99<span style="font-size:13px;font-weight:400;color:#8d99ab;">/mo</span></div>
           <div style="font-size:12px;color:#566174;margin-bottom:12px;">7-day free trial · cancel anytime</div>
-          <div style="display:inline-block;padding:7px 16px;background:#2a2010;border:1px solid #566174;
-            color:#566174;border-radius:8px;font-size:12px;font-weight:600;cursor:default;
-            white-space:nowrap;" title="Payment system coming soon">
-            Coming Soon
-          </div>
+          <button onclick="window.startCheckout()"
+            style="padding:7px 16px;background:#2a1a00;border:1px solid #ffd166;color:#ffd166;
+            border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+            transition:background 0.15s;"
+            onmouseover="this.style.background='#3a2a00'" onmouseout="this.style.background='#2a1a00'">
+            Subscribe — $5.99/mo
+          </button>
         </div>
 
         <!-- Option 2: In-game credits -->
@@ -669,6 +671,50 @@ export function stopLandingRefresh() {
   if (_landingTimer) { clearInterval(_landingTimer); _landingTimer = null; }
 }
 
+// ─── CREDITS ─────────────────────────────────────────────────────────────────
+
+function renderCredits() {
+  const credits = [
+    {
+      name: 'AviPedia / Aviendha',
+      role: 'Wiki & Guides',
+      note: 'Authored the original AviPedia guides and wiki content that forms the foundation of the Guides section in this app.',
+    },
+    {
+      name: 'Hazzmatt',
+      role: 'Achievements',
+      note: 'Compiled and documented the Achievements data used in the Achievements tracker.',
+    },
+  ];
+
+  const rows = credits.map(c => `
+    <div style="display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #2a3040;">
+      <div style="flex-shrink:0;width:36px;height:36px;border-radius:50%;background:#1e2a3a;
+        border:1px solid #2d5a8a;display:flex;align-items:center;justify-content:center;
+        font-size:16px;">&#9733;</div>
+      <div>
+        <div style="font-weight:700;color:#eef2f7;font-size:14px;">${escapeHtml(c.name)}
+          <span style="font-size:11px;font-weight:400;color:#566174;margin-left:8px;
+            text-transform:uppercase;letter-spacing:0.06em;">${escapeHtml(c.role)}</span>
+        </div>
+        <div style="font-size:13px;color:#8d99ab;margin-top:3px;">${escapeHtml(c.note)}</div>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="card" style="padding:20px;">
+      <div style="font-size:0.75em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:14px;">Credits &amp; Acknowledgements</div>
+      ${rows}
+      <div style="padding-top:12px;font-size:13px;color:#566174;line-height:1.6;">
+        Crafting calculators and pricing data are derived from community-shared Google Sheets
+        and resources made publicly available for the ArcheRage private server.
+        Thank you to everyone in the ArcheRage community who has contributed knowledge, testing, and feedback.
+      </div>
+    </div>
+  `;
+}
+
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
 
 export function renderLandingPage() {
@@ -694,6 +740,8 @@ export function renderLandingPage() {
     ${!isPro ? renderProPitch() : ''}
 
     ${renderArcPointsCard()}
+
+    ${renderCredits()}
 
     ${renderDevNotes()}
   `;
@@ -845,4 +893,28 @@ window.saveProfileModal = function() {
   saveIGN(ign);
   document.getElementById('profile-modal')?.remove();
   window.renderCurrentPage();
+};
+
+window.startCheckout = async function() {
+  const auth = getAuth();
+  if (!auth.user?.id) {
+    alert('Please log in first.');
+    return;
+  }
+
+  try {
+    const res = await fetch('https://ywkyhtvfdbtybevggonb.supabase.co/functions/v1/create-checkout', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ discord_id: auth.user.id }),
+    });
+
+    const data = await res.json();
+    if (!data.url) throw new Error(data.error || data.message || JSON.stringify(data));
+
+    // Open Stripe checkout in system browser
+    window.electronAPI?.openExternal(data.url);
+  } catch (e) {
+    alert('Could not start checkout: ' + e.message);
+  }
 };

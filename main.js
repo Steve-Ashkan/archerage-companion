@@ -5,24 +5,6 @@ const fs   = require('fs');
 const os   = require('os');
 const { createClient } = require('@supabase/supabase-js');
 
-// ─── ENV LOADER ───────────────────────────────────────────────────────────────
-// Reads .env from next to main.js (dev) or resources/ (packaged build).
-// No dotenv dependency — plain file parse.
-(function loadEnv() {
-  try {
-    const envPath = app.isPackaged
-      ? path.join(process.resourcesPath, '.env')
-      : path.join(__dirname, '.env');
-    fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
-      const eq = line.indexOf('=');
-      if (eq > 0) {
-        const k = line.slice(0, eq).trim();
-        const v = line.slice(eq + 1).trim();
-        if (k && !(k in process.env)) process.env[k] = v;
-      }
-    });
-  } catch { /* .env not found — fall through to process.env */ }
-})();
 
 // ─── SUPABASE CLIENT ──────────────────────────────────────────────────────────
 const SUPABASE_URL      = 'https://ywkyhtvfdbtybevggonb.supabase.co';
@@ -33,12 +15,20 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-// Service role — loaded from .env, never hardcoded in source.
-// Bypasses RLS. main.js is the trusted process so this is acceptable.
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
-const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
+// ─── APP API HELPER ───────────────────────────────────────────────────────────
+// All privileged DB operations are routed through the app-api Edge Function.
+// The service key lives only in Supabase secrets — never on the user's machine.
+const APP_API_URL = `${SUPABASE_URL}/functions/v1/app-api`;
+
+async function callAppApi(action, params = {}) {
+  const session = loadSession();
+  const res = await fetch(APP_API_URL, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+    body:    JSON.stringify({ action, discord_id: session?.discordId || null, ...params }),
+  });
+  return res.json();
+}
 
 // ─── REALTIME: USER MAIL ──────────────────────────────────────────────────────
 let _mailChannel = null;
@@ -355,31 +345,25 @@ ipcMain.handle('read-inventory-scan', () => {
 
 // ─── IPC: AUTH ────────────────────────────────────────────────────────────────
 
-// Fetches role + pro_expires_at from profiles table (source of truth).
-// Falls back to 'free' on any error.
+// Fetches role + profile info from the app-api Edge Function (source of truth).
+// Also touches last_seen_at server-side. Falls back to 'free' on any error.
 async function getProfile(discordId) {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('profiles')
-      .select('role, pro_expires_at, ign, discord_name, avatar')
-      .eq('discord_id', discordId)
-      .single();
-    if (!error && data) return {
-      role:       data.role        || 'free',
-      proExpires: data.pro_expires_at || null,
-      ign:        data.ign         || null,
-      discordName: data.discord_name || null,
-      avatar:     data.avatar      || null,
+    const res = await fetch(APP_API_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body:    JSON.stringify({ action: 'get-profile', discord_id: discordId }),
+    });
+    const data = await res.json();
+    if (data.ok && data.profile) return {
+      role:        data.profile.role            || 'free',
+      proExpires:  data.profile.pro_expires_at  || null,
+      ign:         data.profile.ign             || null,
+      discordName: data.profile.discord_name    || null,
+      avatar:      data.profile.avatar          || null,
     };
   } catch {}
   return { role: 'free', proExpires: null, ign: null, discordName: null, avatar: null };
-}
-
-// Updates last_seen_at in profiles.
-async function touchProfile(discordId) {
-  try {
-    await supabaseAdmin.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('discord_id', discordId);
-  } catch {}
 }
 
 // Returns current auth state from saved session + live DB role lookup.
@@ -389,7 +373,6 @@ ipcMain.handle('get-auth-status', async () => {
     if (!session?.discordId) return { ok: true, isPro: false, role: 'free', user: null, proExpires: null };
 
     const prof = await getProfile(session.discordId);
-    touchProfile(session.discordId);
     setupRealtimeMail(session.discordId);
 
     const role  = prof.role;
@@ -504,7 +487,6 @@ ipcMain.handle('handle-oauth-callback', async (event, callbackUrl) => {
     // Save minimal session — no tokens, no email
     saveSession({ discordId, discordName: name, avatar: avatar || null });
     setupRealtimeMail(discordId);
-    touchProfile(discordId);
 
     // Fetch live role from DB — never trust URL params for role
     const prof  = await getProfile(discordId);
@@ -534,63 +516,25 @@ ipcMain.handle('sign-out', () => {
 
 ipcMain.handle('admin-get-users', async () => {
   try {
-    await enforceRole('admin');
-    const { data, error } = await supabaseAdmin
-      .from('profiles')
-      .select('discord_id, discord_name, avatar, role, ign, pro_expires_at, last_seen_at')
-      .order('last_seen_at', { ascending: false });
-    if (error) return { ok: false, error: error.message };
-    // Map to shape devPanel expects: id = discord_id, avatar_url = avatar
-    const users = (data || []).map(u => ({
-      id:            u.discord_id,
-      discord_name:  u.discord_name,
-      avatar_url:    u.avatar,
-      role:          u.role,
-      ign:           u.ign,
-      pro_expires_at: u.pro_expires_at,
-      last_seen_at:  u.last_seen_at,
-    }));
-    return { ok: true, users };
+    return await callAppApi('admin-get-users');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('admin-set-role', async (event, { userId, role }) => {
-  // userId is discord_id
   try {
-    await enforceRole('admin');
-    const VALID_ROLES = ['free', 'pro', 'curator', 'staff', 'admin', 'dev'];
-    if (!VALID_ROLES.includes(role)) return { ok: false, error: 'Invalid role' };
-    const { error } = await supabaseAdmin.from('profiles').update({ role }).eq('discord_id', userId);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('admin-set-role', { userId, role });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('admin-grant-pro', async (event, { userId, days }) => {
-  // userId is discord_id
   try {
-    await enforceRole('admin');
-    const daysNum = parseInt(days, 10);
-    if (isNaN(daysNum) || daysNum < 1 || daysNum > 3650) return { ok: false, error: 'Days must be 1–3650' };
-    const expires = new Date();
-    expires.setDate(expires.getDate() + daysNum);
-    const { error } = await supabaseAdmin.from('profiles')
-      .update({ role: 'pro', pro_expires_at: expires.toISOString() })
-      .eq('discord_id', userId);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('admin-grant-pro', { userId, days });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('admin-revoke-pro', async (event, { userId }) => {
-  // userId is discord_id
   try {
-    await enforceRole('admin');
-    const { error } = await supabaseAdmin.from('profiles')
-      .update({ role: 'free', pro_expires_at: null })
-      .eq('discord_id', userId);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('admin-revoke-pro', { userId });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -721,11 +665,7 @@ ipcMain.handle('show-notification', (event, { title, body, eventName }) => {
 
 ipcMain.handle('update-ign', async (event, { ign }) => {
   try {
-    const session = loadSession();
-    if (!session?.discordId) return { ok: false, error: 'Not authenticated' };
-    const { error } = await supabaseAdmin.from('profiles').update({ ign }).eq('discord_id', session.discordId);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('update-ign', { ign });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -733,16 +673,7 @@ ipcMain.handle('update-ign', async (event, { ign }) => {
 
 ipcMain.handle('wiki-submit', async (event, { title, category, content, discordName, ign }) => {
   try {
-    const session = loadSession();
-    if (!session?.discordId) return { ok: false, error: 'Not authenticated' };
-    const { error } = await supabaseAdmin.from('wiki_submissions').insert({
-      submitter_discord_id: session.discordId,
-      title, category, content,
-      discord_name: discordName || null,
-      ign:          ign         || null,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('wiki-submit', { title, category, content, discordName, ign });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -757,32 +688,13 @@ ipcMain.handle('wiki-admin-get-submissions', async () => {
 
 ipcMain.handle('wiki-admin-approve', async (event, { id }) => {
   try {
-    await enforceRole('curator');
-    // Fetch submitter before updating so we can award points
-    const { data: sub } = await supabaseAdmin.from('wiki_submissions')
-      .select('submitter_discord_id')
-      .eq('id', id)
-      .single();
-    const { error } = await supabaseAdmin.from('wiki_submissions')
-      .update({ status: 'approved', reviewed_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) return { ok: false, error: error.message };
-    // Award 25 ARC Points for an approved wiki article
-    if (sub?.submitter_discord_id) {
-      await awardArcPoints(sub.submitter_discord_id, 25, 'wiki_approved', String(id));
-    }
-    return { ok: true };
+    return await callAppApi('wiki-admin-approve', { id });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('wiki-admin-reject', async (event, { id, feedback }) => {
   try {
-    await enforceRole('curator');
-    const { error } = await supabaseAdmin.from('wiki_submissions')
-      .update({ status: 'rejected', feedback: feedback || null, reviewed_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('wiki-admin-reject', { id, feedback });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -794,105 +706,41 @@ ipcMain.handle('wiki-get-news', async () => {
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
-// ─── ARC POINTS HELPER ───────────────────────────────────────────────────────
-
-async function awardArcPoints(discordId, points, actionType, referenceId = null) {
-  try {
-    await supabaseAdmin.rpc('award_arc_points', {
-      p_discord_id:   discordId,
-      p_points:       points,
-      p_action_type:  actionType,
-      p_reference_id: referenceId ? String(referenceId) : null,
-    });
-  } catch (e) {
-    console.error('[arc] awardArcPoints failed:', e.message);
-  }
-}
-
 // ─── IPC: ARC POINTS ─────────────────────────────────────────────────────────
 
 ipcMain.handle('arc-get-my-points', async () => {
   try {
-    const session = loadSession();
-    if (!session?.discordId) return { ok: true, points: 0 };
-    const { data, error } = await supabaseAdmin.rpc('get_my_points', { p_discord_id: session.discordId });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, points: data || 0 };
+    return await callAppApi('arc-get-my-points');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('arc-get-point-history', async () => {
   try {
-    const session = loadSession();
-    if (!session?.discordId) return { ok: true, history: [] };
-    const { data, error } = await supabaseAdmin.rpc('get_my_point_history', { p_discord_id: session.discordId });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, history: data || [] };
+    return await callAppApi('arc-get-point-history');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('arc-submit-redemption', async (event, { rewardId, rewardLabel, pointsSpent, ignSnapshot, discordName, recipientId }) => {
   try {
-    // discord_id comes from the verified session — never trust the client to supply it
-    const session = loadSession();
-    if (!session?.discordId) return { ok: false, error: 'Not authenticated' };
-    // Server-side balance check
-    const { data: balance } = await supabaseAdmin.rpc('get_my_points', { p_discord_id: session.discordId });
-    if ((balance || 0) < pointsSpent) return { ok: false, error: 'Insufficient ARC Points' };
-    // Insert redemption record
-    const { data: redemption, error } = await supabaseAdmin.from('arc_redemptions').insert({
-      discord_id:   session.discordId,
-      reward_id:    rewardId,
-      reward_label: rewardLabel,
-      points_spent: pointsSpent,
-      ign_snapshot: ignSnapshot || null,
-      discord_name: discordName || null,
-      recipient_id: recipientId || null,
-    }).select('id').single();
-    if (error) return { ok: false, error: error.message };
-    // Deduct points immediately (refunded if cancelled)
-    await awardArcPoints(session.discordId, -pointsSpent, 'redemption', String(redemption.id));
-    return { ok: true };
+    return await callAppApi('arc-submit-redemption', { rewardId, rewardLabel, pointsSpent, ignSnapshot, discordName, recipientId });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('arc-get-all-redemptions', async () => {
   try {
-    await enforceRole('admin');
-    const { data, error } = await supabaseAdmin.rpc('get_pending_redemptions');
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, redemptions: data || [] };
+    return await callAppApi('arc-get-all-redemptions');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('arc-fulfill-redemption', async (event, { id, notes }) => {
   try {
-    await enforceRole('admin');
-    const { error } = await supabaseAdmin.from('arc_redemptions')
-      .update({ status: 'fulfilled', notes: notes || null, fulfilled_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('arc-fulfill-redemption', { id, notes });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('arc-cancel-redemption', async (event, { id }) => {
   try {
-    await enforceRole('admin');
-    // Fetch redemption details to refund the points
-    const { data: r } = await supabaseAdmin.from('arc_redemptions')
-      .select('discord_id, points_spent, status')
-      .eq('id', id)
-      .single();
-    const { error } = await supabaseAdmin.from('arc_redemptions')
-      .update({ status: 'cancelled' })
-      .eq('id', id);
-    if (error) return { ok: false, error: error.message };
-    // Refund points if it was still pending (pending means points were already deducted)
-    if (r?.discord_id && r?.status === 'pending') {
-      await awardArcPoints(r.discord_id, r.points_spent, 'refund', String(id));
-    }
-    return { ok: true };
+    return await callAppApi('arc-cancel-redemption', { id });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -900,62 +748,25 @@ ipcMain.handle('arc-cancel-redemption', async (event, { id }) => {
 
 ipcMain.handle('arc-get-my-mail', async () => {
   try {
-    const session = loadSession();
-    if (!session?.discordId) return { ok: true, mail: [] };
-    const { data, error } = await supabaseAdmin
-      .from('user_mail')
-      .select('*')
-      .eq('recipient_discord_id', session.discordId)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, mail: data || [] };
+    return await callAppApi('arc-get-my-mail');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('arc-mark-mail-read', async (event, { id }) => {
   try {
-    const session = loadSession();
-    if (!session?.discordId) return { ok: false, error: 'Not authenticated' };
-    const { error } = await supabaseAdmin
-      .from('user_mail')
-      .update({ is_read: true })
-      .eq('id', id)
-      .eq('recipient_discord_id', session.discordId); // only own mail
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('arc-mark-mail-read', { id });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('arc-lookup-user', async (event, { discordName }) => {
   try {
-    await enforceRole('staff');
-    const { data, error } = await supabaseAdmin
-      .from('profiles')
-      .select('discord_id, discord_name, role, ign')
-      .ilike('discord_name', discordName)
-      .limit(5);
-    if (error) return { ok: false, error: error.message };
-    // Map to shape devPanel expects: id = discord_id
-    const user = data?.[0] ? { id: data[0].discord_id, ...data[0] } : null;
-    return { ok: true, user };
+    return await callAppApi('arc-lookup-user', { discordName });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('arc-send-mail', async (event, { recipientId, subject, body, referenceId }) => {
   try {
-    // Sending mail requires staff+; sender is set from the verified session
-    await enforceRole('staff');
-    const session = loadSession();
-    const { error } = await supabaseAdmin.from('user_mail').insert({
-      sender_discord_id:    session?.discordId || null,
-      recipient_discord_id: recipientId,
-      subject,
-      body,
-      reference_id: referenceId || null,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('arc-send-mail', { recipientId, subject, body, referenceId });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -984,6 +795,24 @@ ipcMain.handle('pick-folder', async (event, { defaultPath } = {}) => {
 });
 
 // Check which addons are missing or present at the target location
+ipcMain.handle('validate-addon-path', (event, { targetPath } = {}) => {
+  if (!targetPath) return { ok: true, valid: false, reason: 'No path provided.' };
+  const resolved = path.resolve(targetPath);
+  // Must be inside the user's home directory
+  if (!resolved.startsWith(os.homedir())) {
+    return { ok: true, valid: false, reason: 'Path must be inside your user folder.' };
+  }
+  // Must exist on disk
+  if (!fs.existsSync(resolved)) {
+    return { ok: true, valid: false, reason: 'Folder does not exist.' };
+  }
+  // Must contain "ArcheRage" somewhere in the path (handles OneDrive, custom installs)
+  if (!resolved.toLowerCase().includes('archerage')) {
+    return { ok: true, valid: false, reason: 'This doesn\'t look like an ArcheRage folder. Make sure you select the ArcheRage\\Addon folder.' };
+  }
+  return { ok: true, valid: true, reason: null };
+});
+
 ipcMain.handle('check-addon-status', (event, { targetBase } = {}) => {
   const bundledDir = getBundledAddonsDir();
   const base = targetBase ? path.resolve(targetBase) : path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
@@ -1045,20 +874,7 @@ ipcMain.handle('install-addons', (event, { names, targetBase } = {}) => {
 
 ipcMain.handle('recipe-submit', async (event, { output, outputQty, profession, labor, materials, notes, ign }) => {
   try {
-    const session = loadSession();
-    if (!session?.discordId) return { ok: false, error: 'Not authenticated' };
-    const { error } = await supabaseAdmin.from('recipe_submissions').insert({
-      submitter_discord_id: session.discordId,
-      output,
-      output_qty:   outputQty || 1,
-      profession:   profession || null,
-      labor:        labor || 0,
-      materials:    materials || [],
-      notes:        notes || null,
-      ign:          ign || null,
-    });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('recipe-submit', { output, outputQty, profession, labor, materials, notes, ign });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -1073,41 +889,13 @@ ipcMain.handle('recipe-admin-get-submissions', async () => {
 
 ipcMain.handle('recipe-admin-approve', async (event, { id, output, outputQty, profession, labor, materials, notes }) => {
   try {
-    await enforceRole('curator');
-    // Fetch submitter before updating so we can award points
-    const { data: sub } = await supabaseAdmin.from('recipe_submissions')
-      .select('submitter_discord_id')
-      .eq('id', id)
-      .single();
-    const { error } = await supabaseAdmin.from('recipe_submissions')
-      .update({
-        status:      'approved',
-        output,
-        output_qty:  outputQty,
-        profession,
-        labor,
-        materials,
-        notes:       notes || null,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-    if (error) return { ok: false, error: error.message };
-    // Award 5 ARC Points for a verified recipe
-    if (sub?.submitter_discord_id) {
-      await awardArcPoints(sub.submitter_discord_id, 5, 'recipe_verified', String(id));
-    }
-    return { ok: true };
+    return await callAppApi('recipe-admin-approve', { id, output, outputQty, profession, labor, materials, notes });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('recipe-admin-reject', async (event, { id, feedback }) => {
   try {
-    await enforceRole('curator');
-    const { error } = await supabaseAdmin.from('recipe_submissions')
-      .update({ status: 'rejected', feedback: feedback || null, reviewed_at: new Date().toISOString() })
-      .eq('id', id);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('recipe-admin-reject', { id, feedback });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 

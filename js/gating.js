@@ -40,7 +40,7 @@ export const PAGES = [
   { id: "costumeBuilder",  label: "Costume Builder",      group: "tools" },
   { id: "proficiency",     label: "Proficiency",          group: "tools" },
   { id: "submitRecipe",    label: "Submit a Recipe",      group: "tools" },
-  { id: "recipeLookup",    label: "Recipe Lookup",        group: "pro",   minRole: "pro" },
+  { id: "recipeLookup",    label: "Recipe Lookup",        group: "pro",   minRole: "dev" },
   { id: "arcPoints",       label: "ARC Points",           group: "tools" },
 
   // ── Pro ───────────────────────────────────────────────────────────────────

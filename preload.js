@@ -79,8 +79,9 @@ try {
 
     // ── Addon Installer ───────────────────────────────────────────────────
     pickFolder:       (opts)  => ipcRenderer.invoke('pick-folder', opts),
-    checkAddonStatus: (opts)  => ipcRenderer.invoke('check-addon-status', opts),
-    installAddons:    (opts)  => ipcRenderer.invoke('install-addons', opts),
+    checkAddonStatus:  (opts)  => ipcRenderer.invoke('check-addon-status', opts),
+    validateAddonPath: (opts)  => ipcRenderer.invoke('validate-addon-path', opts),
+    installAddons:     (opts)  => ipcRenderer.invoke('install-addons', opts),
 
     // ── Recipe Submissions ────────────────────────────────────────────────
     recipeSubmit:           (opts) => ipcRenderer.invoke('recipe-submit', opts),
