@@ -103,7 +103,16 @@ function loadSession() {
     if (!fs.existsSync(SESSION_PATH)) return null;
     if (!safeStorage.isEncryptionAvailable()) return null;
     const encrypted = fs.readFileSync(SESSION_PATH);
-    return JSON.parse(safeStorage.decryptString(encrypted));
+    const session   = JSON.parse(safeStorage.decryptString(encrypted));
+    // L-4: Reject sessions whose JWT has expired — forces re-authentication
+    if (session?.sessionToken) {
+      const payload = decodeJWTPayload(session.sessionToken);
+      if (!payload?.exp || payload.exp < Math.floor(Date.now() / 1000)) {
+        clearSession();
+        return null;
+      }
+    }
+    return session;
   } catch(e) { return null; }
 }
 
