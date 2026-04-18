@@ -3,11 +3,14 @@
 //
 // Events handled:
 //   checkout.session.completed       → set role='pro', store stripe_customer_id
-//   customer.subscription.deleted   → set role='free' (cancelled/expired)
-//   invoice.payment_failed           → set role='free' (payment failed after retries)
+//   invoice.payment_succeeded        → update pro_expires_at
+//   customer.subscription.deleted   → downgrade to free (pro only — elevated roles preserved)
+//   invoice.payment_failed           → downgrade to free (pro only — elevated roles preserved)
 
 import Stripe from 'https://esm.sh/stripe@14?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const ELEVATED_ROLES = new Set(['curator', 'staff', 'admin', 'dev']);
 
 Deno.serve(async (req) => {
   const signature = req.headers.get('stripe-signature');
@@ -21,9 +24,7 @@ Deno.serve(async (req) => {
     });
 
     const event = await stripe.webhooks.constructEventAsync(
-      body,
-      signature,
-      Deno.env.get('STRIPE_WEBHOOK_SECRET')!,
+      body, signature, Deno.env.get('STRIPE_WEBHOOK_SECRET')!,
     );
 
     const supabase = createClient(
@@ -31,36 +32,30 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ── Subscription started (checkout completed) ─────────────────────────────
+    // ── Subscription started ──────────────────────────────────────────────────
     if (event.type === 'checkout.session.completed') {
-      const session  = event.data.object as Stripe.Checkout.Session;
+      const session   = event.data.object as Stripe.Checkout.Session;
       const discordId = session.client_reference_id;
       if (!discordId) {
         console.error('[stripe-webhook] checkout.session.completed missing client_reference_id');
         return new Response('ok', { status: 200 });
       }
 
-      // Get subscription period end so we know when Pro expires
       const sub = await stripe.subscriptions.retrieve(session.subscription as string);
       const proExpiresAt = new Date(sub.current_period_end * 1000).toISOString();
 
-      // Store customer ID so we can look up the profile on future events
       await stripe.customers.update(session.customer as string, {
         metadata: { discord_id: discordId },
       });
 
       await supabase.from('profiles')
-        .update({
-          role:               'pro',
-          pro_expires_at:     proExpiresAt,
-          stripe_customer_id: session.customer as string,
-        })
+        .update({ role: 'pro', pro_expires_at: proExpiresAt, stripe_customer_id: session.customer as string })
         .eq('discord_id', discordId);
 
       console.log(`[stripe-webhook] upgraded ${discordId} to pro, expires ${proExpiresAt}`);
     }
 
-    // ── Subscription renewed — update expiry date ─────────────────────────────
+    // ── Subscription renewed ──────────────────────────────────────────────────
     if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object as Stripe.Invoice;
       if (invoice.billing_reason !== 'subscription_cycle') return new Response('ok', { status: 200 });
@@ -91,11 +86,22 @@ Deno.serve(async (req) => {
       const discordId  = customer.metadata?.discord_id;
       if (!discordId) return new Response('ok', { status: 200 });
 
-      await supabase.from('profiles')
-        .update({ role: 'free', pro_expires_at: null })
-        .eq('discord_id', discordId);
+      // L-2: Never downgrade elevated roles — only demote 'pro' back to 'free'
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('discord_id', discordId).single();
 
-      console.log(`[stripe-webhook] downgraded ${discordId} to free (${event.type})`);
+      if (profile && ELEVATED_ROLES.has(profile.role)) {
+        // Just clear the Stripe expiry date — keep the elevated role intact
+        await supabase.from('profiles')
+          .update({ pro_expires_at: null })
+          .eq('discord_id', discordId);
+        console.log(`[stripe-webhook] kept elevated role '${profile.role}' for ${discordId}, cleared pro_expires_at`);
+      } else {
+        await supabase.from('profiles')
+          .update({ role: 'free', pro_expires_at: null })
+          .eq('discord_id', discordId);
+        console.log(`[stripe-webhook] downgraded ${discordId} to free (${event.type})`);
+      }
     }
 
     return new Response('ok', { status: 200 });

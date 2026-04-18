@@ -1160,7 +1160,7 @@ window._rmaRemoveMat = function(idx) {
   if (!list) return;
   list.innerHTML = window._rmaMats.map((m, i) => `
     <div style="display:grid;grid-template-columns:1fr 70px 28px;gap:6px;align-items:center;margin-bottom:6px;">
-      <input type="text" value="${(m.item||'').replace(/"/g,'&quot;')}"
+      <input type="text" value="${escapeHtml(m.item||'')}"
         onchange="window._rmaUpdateMat(${i},'item',this.value)"
         style="padding:6px 10px;background:#0a1018;border:1px solid #2a3a52;color:#eef2f7;border-radius:6px;font-size:13px;">
       <input type="number" min="1" value="${m.qty||1}"

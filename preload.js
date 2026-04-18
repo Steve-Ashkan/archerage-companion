@@ -1,7 +1,9 @@
+// C-2: Use contextBridge to expose a safe, explicit API surface to the renderer.
+// The renderer cannot access Node.js or Electron internals directly.
 try {
-  const { ipcRenderer } = require('electron');
+  const { contextBridge, ipcRenderer } = require('electron');
 
-  window.electronAPI = {
+  contextBridge.exposeInMainWorld('electronAPI', {
     // ── Shell ─────────────────────────────────────────────────────────────
     openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
@@ -12,15 +14,11 @@ try {
     getAddonDir:       ()      => ipcRenderer.invoke('get-addon-dir'),
     readInventoryScan: ()      => ipcRenderer.invoke('read-inventory-scan'),
 
-    // ── Auth / Token Storage ──────────────────────────────────────────────
-    // Session is encrypted by the OS via safeStorage — never stored raw.
+    // ── Auth ──────────────────────────────────────────────────────────────
     getAuthStatus:       ()    => ipcRenderer.invoke('get-auth-status'),
     openDiscordAuth:     ()    => ipcRenderer.invoke('open-discord-auth'),
     handleOAuthCallback: (url) => ipcRenderer.invoke('handle-oauth-callback', url),
     signOut:             ()    => ipcRenderer.invoke('sign-out'),
-    // Legacy
-    storeToken: (token) => ipcRenderer.invoke('store-token', token),
-    clearToken: ()      => ipcRenderer.invoke('clear-token'),
 
     // Listen for OAuth deep link callback sent from main process
     onOAuthCallback: (cb) => {
@@ -28,16 +26,16 @@ try {
       ipcRenderer.once('oauth-callback', (e, url) => cb(url));
     },
 
-    // ── Community Prices ──────────────────────────────────────────────────────
+    // ── Community Prices ──────────────────────────────────────────────────
     getCommunityPrices:         ()               => ipcRenderer.invoke('get-community-prices'),
-    submitCommunityPrice:       (itemName, price)=> ipcRenderer.invoke('submit-community-price', { itemName, price }),
+    submitCommunityPrice:       (itemName, price) => ipcRenderer.invoke('submit-community-price', { itemName, price }),
     bulkSubmitCommunityPrices:  (items)          => ipcRenderer.invoke('bulk-submit-community-prices', items),
     getItemPriceHistory:        (itemName)       => ipcRenderer.invoke('get-item-price-history', { itemName }),
     adminGetFlaggedPrices:      ()               => ipcRenderer.invoke('admin-get-flagged-prices'),
-    adminAcceptPrice:           (itemName, price)=> ipcRenderer.invoke('admin-accept-price', { itemName, price }),
+    adminAcceptPrice:           (itemName, price) => ipcRenderer.invoke('admin-accept-price', { itemName, price }),
     adminRejectPrice:           (itemName)       => ipcRenderer.invoke('admin-reject-price', { itemName }),
 
-    // ── Admin ─────────────────────────────────────────────────────────────────
+    // ── Admin ─────────────────────────────────────────────────────────────
     adminGetUsers:  ()                     => ipcRenderer.invoke('admin-get-users'),
     adminSetRole:   (userId, role)         => ipcRenderer.invoke('admin-set-role',  { userId, role }),
     adminGrantPro:  (userId, days)         => ipcRenderer.invoke('admin-grant-pro', { userId, days }),
@@ -46,7 +44,6 @@ try {
     // ── Native Windows Notification ───────────────────────────────────────
     showNotification: (opts) => ipcRenderer.invoke('show-notification', opts),
 
-    // Listen for snooze/not-going responses from notification clicks
     onNotificationSnooze:   (cb) => ipcRenderer.on('notification-snooze',    (e, name) => cb(name)),
     onNotificationNotGoing: (cb) => ipcRenderer.on('notification-not-going', (e, name) => cb(name)),
 
@@ -64,51 +61,53 @@ try {
     arcMarkMailRead: (id)   => ipcRenderer.invoke('arc-mark-mail-read', { id }),
     arcSendMail:     (opts) => ipcRenderer.invoke('arc-send-mail', opts),
 
-    // Realtime — fires instantly when Ashkan sends mail
     onNewMail: (cb) => ipcRenderer.on('arc-new-mail', (e, mail) => cb(mail)),
 
     // ── Profile ───────────────────────────────────────────────────────────
     updateIgn: (ign) => ipcRenderer.invoke('update-ign', { ign }),
 
     // ── Wiki Submissions ──────────────────────────────────────────────────
-    wikiSubmit:           (opts) => ipcRenderer.invoke('wiki-submit', opts),
-    wikiAdminGetSubmissions: ()  => ipcRenderer.invoke('wiki-admin-get-submissions'),
-    wikiAdminApprove:     (id)   => ipcRenderer.invoke('wiki-admin-approve', { id }),
-    wikiAdminReject:      (opts) => ipcRenderer.invoke('wiki-admin-reject', opts),
-    wikiGetNews:          ()     => ipcRenderer.invoke('wiki-get-news'),
+    wikiSubmit:              (opts) => ipcRenderer.invoke('wiki-submit', opts),
+    wikiAdminGetSubmissions: ()     => ipcRenderer.invoke('wiki-admin-get-submissions'),
+    wikiAdminApprove:        (id)   => ipcRenderer.invoke('wiki-admin-approve', { id }),
+    wikiAdminReject:         (opts) => ipcRenderer.invoke('wiki-admin-reject', opts),
+    wikiGetNews:             ()     => ipcRenderer.invoke('wiki-get-news'),
 
     // ── Addon Installer ───────────────────────────────────────────────────
-    pickFolder:       (opts)  => ipcRenderer.invoke('pick-folder', opts),
-    checkAddonStatus:  (opts)  => ipcRenderer.invoke('check-addon-status', opts),
-    validateAddonPath: (opts)  => ipcRenderer.invoke('validate-addon-path', opts),
-    installAddons:     (opts)  => ipcRenderer.invoke('install-addons', opts),
+    pickFolder:        (opts) => ipcRenderer.invoke('pick-folder', opts),
+    checkAddonStatus:  (opts) => ipcRenderer.invoke('check-addon-status', opts),
+    validateAddonPath: (opts) => ipcRenderer.invoke('validate-addon-path', opts),
+    installAddons:     (opts) => ipcRenderer.invoke('install-addons', opts),
 
     // ── Recipe Submissions ────────────────────────────────────────────────
-    recipeSubmit:           (opts) => ipcRenderer.invoke('recipe-submit', opts),
-    recipeAdminGet:         ()     => ipcRenderer.invoke('recipe-admin-get-submissions'),
-    recipeAdminApprove:     (opts) => ipcRenderer.invoke('recipe-admin-approve', opts),
-    recipeAdminReject:      (opts) => ipcRenderer.invoke('recipe-admin-reject', opts),
-    recipeGetApproved:      ()     => ipcRenderer.invoke('recipe-get-approved'),
+    recipeSubmit:       (opts) => ipcRenderer.invoke('recipe-submit', opts),
+    recipeAdminGet:     ()     => ipcRenderer.invoke('recipe-admin-get-submissions'),
+    recipeAdminApprove: (opts) => ipcRenderer.invoke('recipe-admin-approve', opts),
+    recipeAdminReject:  (opts) => ipcRenderer.invoke('recipe-admin-reject', opts),
+    recipeGetApproved:  ()     => ipcRenderer.invoke('recipe-get-approved'),
 
-    // ── Crowdsourced Prices / Inventory ──────────────────────────────────────
+    // ── Crowdsourced Prices / Inventory ───────────────────────────────────
     addToScanList:             (itemName) => ipcRenderer.invoke('add-to-scan-list', { itemName }),
     submitInventory:           (items)    => ipcRenderer.invoke('submit-inventory', items),
     submitAuthoritativePrices: (items)    => ipcRenderer.invoke('submit-authoritative-prices', items),
     getPendingPriceItems:      ()         => ipcRenderer.invoke('get-pending-price-items'),
 
-    // ── DevTools access (unlocked server-side for curator+ roles) ────────
+    // ── Stripe Checkout ───────────────────────────────────────────────────
+    // Runs through main process — session token never exposed to renderer
+    createCheckout: () => ipcRenderer.invoke('create-checkout'),
+
+    // ── DevTools ──────────────────────────────────────────────────────────
     requestDevTools: () => ipcRenderer.invoke('request-devtools'),
 
     // ── Auto-updater ──────────────────────────────────────────────────────
-    installUpdate:   ()   => ipcRenderer.invoke('install-update'),
-    checkForUpdate:  ()   => ipcRenderer.invoke('check-for-update'),
-    onUpdateReady:   (cb) => ipcRenderer.on('update-ready',  (e, version) => cb(version)),
-    onUpdateError:   (cb) => ipcRenderer.on('update-error',  (e, msg)     => cb(msg)),
-  };
+    installUpdate:  ()   => ipcRenderer.invoke('install-update'),
+    checkForUpdate: ()   => ipcRenderer.invoke('check-for-update'),
+    onUpdateReady:  (cb) => ipcRenderer.on('update-ready', (e, version) => cb(version)),
+    onUpdateError:  (cb) => ipcRenderer.on('update-error', (e, msg)     => cb(msg)),
+  });
 
   console.log('[preload] electronAPI loaded OK');
 
 } catch(e) {
   console.error('[preload] FAILED to load electronAPI:', e.message);
-  window.electronAPI = null;
 }

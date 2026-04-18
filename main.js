@@ -18,16 +18,32 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // ─── APP API HELPER ───────────────────────────────────────────────────────────
 // All privileged DB operations are routed through the app-api Edge Function.
 // The service key lives only in Supabase secrets — never on the user's machine.
-const APP_API_URL = `${SUPABASE_URL}/functions/v1/app-api`;
+// Identity is established via a signed session JWT in the Authorization header,
+// NOT via a discord_id in the request body.
+const APP_API_URL      = `${SUPABASE_URL}/functions/v1/app-api`;
+const CHECKOUT_API_URL = `${SUPABASE_URL}/functions/v1/create-checkout`;
 
 async function callAppApi(action, params = {}) {
   const session = loadSession();
+  const headers = { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY };
+  if (session?.sessionToken) headers['Authorization'] = `Bearer ${session.sessionToken}`;
   const res = await fetch(APP_API_URL, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-    body:    JSON.stringify({ action, discord_id: session?.discordId || null, ...params }),
+    headers,
+    body:    JSON.stringify({ action, ...params }),
   });
   return res.json();
+}
+
+// Decode JWT payload without verification (signature verified server-side).
+// Used only for local display (name, avatar) — never for access control.
+function decodeJWTPayload(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+  } catch { return null; }
 }
 
 // ─── REALTIME: USER MAIL ──────────────────────────────────────────────────────
@@ -108,7 +124,7 @@ async function getCallerRole() {
   try {
     const session = loadSession();
     if (!session?.discordId) return 'free';
-    const prof = await getProfile(session.discordId);
+    const prof = await getProfile();
     return prof.role || 'free';
   } catch { return 'free'; }
 }
@@ -189,6 +205,11 @@ ipcMain.handle('request-devtools', async () => {
   return { ok: true, allowed };
 });
 
+// ─── OAUTH STATE ─────────────────────────────────────────────────────────────
+// Random nonce generated per login attempt — verified in handle-oauth-callback
+// to prevent CSRF attacks via malicious deep links.
+let _oauthState = null;
+
 // ─── MAIN WINDOW REF ──────────────────────────────────────────────────────────
 // Kept at module scope so handleOAuthDeepLink always sends to the main window,
 // not the OAuth popup (getAllWindows()[0] would be the popup when it's open).
@@ -202,10 +223,8 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on('second-instance', (event, commandLine) => {
-    console.log('[main] second-instance fired. args:', commandLine);
     // On Windows the deep link URL is the last command-line argument
     const url = commandLine.find(arg => arg.startsWith('archerage://'));
-    console.log('[main] deep link url found:', url || 'NONE');
     if (url) handleOAuthDeepLink(url);
 
     const wins = BrowserWindow.getAllWindows();
@@ -217,12 +236,12 @@ if (!gotTheLock) {
 }
 
 function handleOAuthDeepLink(url) {
-  console.log('[main] OAuth deep link:', url);
   if (mainWindow) mainWindow.webContents.send('oauth-callback', url);
 }
 
 ipcMain.handle('open-external', (event, url) => {
-  if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+  // M-3: https:// only — reject http:// to prevent MITM / captive-portal phishing
+  if (typeof url === 'string' && url.startsWith('https://')) {
     shell.openExternal(url);
   }
 });
@@ -258,9 +277,11 @@ ipcMain.handle('read-scan-items', () => {
 ipcMain.handle('write-scan-items', (event, items) => {
   try {
     ensureAddonDir();
-    const content = ['item_name', ...items.map(i => String(i).trim())].join('\n') + '\n';
+    // M-2: Strip CSV-unsafe characters to prevent item names from corrupting the file
+    const safe = items.map(i => String(i).trim().replace(/[\r\n,]/g, '')).filter(Boolean);
+    const content = ['item_name', ...safe].join('\n') + '\n';
     fs.writeFileSync(SCAN_ITEMS, content, 'utf8');
-    return { ok: true, count: items.length };
+    return { ok: true, count: safe.length };
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -268,14 +289,17 @@ ipcMain.handle('write-scan-items', (event, items) => {
 ipcMain.handle('add-to-scan-list', async (event, { itemName }) => {
   try {
     await enforceRole('dev');
+    // M-2: Sanitize item name
+    const safeName = String(itemName || '').trim().replace(/[\r\n,]/g, '').slice(0, 200);
+    if (!safeName) return { ok: false, error: 'Invalid item name' };
     ensureAddonDir();
     let items = [];
     if (fs.existsSync(SCAN_ITEMS)) {
       items = fs.readFileSync(SCAN_ITEMS, 'utf8')
         .split('\n').map(l => l.trim()).filter(l => l && l !== 'item_name');
     }
-    if (!items.includes(itemName)) {
-      items.push(itemName);
+    if (!items.includes(safeName)) {
+      items.push(safeName);
       const content = ['item_name', ...items].join('\n') + '\n';
       fs.writeFileSync(SCAN_ITEMS, content, 'utf8');
     }
@@ -347,14 +371,9 @@ ipcMain.handle('read-inventory-scan', () => {
 
 // Fetches role + profile info from the app-api Edge Function (source of truth).
 // Also touches last_seen_at server-side. Falls back to 'free' on any error.
-async function getProfile(discordId) {
+async function getProfile() {
   try {
-    const res = await fetch(APP_API_URL, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-      body:    JSON.stringify({ action: 'get-profile', discord_id: discordId }),
-    });
-    const data = await res.json();
+    const data = await callAppApi('get-profile');
     if (data.ok && data.profile) return {
       role:        data.profile.role            || 'free',
       proExpires:  data.profile.pro_expires_at  || null,
@@ -372,7 +391,7 @@ ipcMain.handle('get-auth-status', async () => {
     const session = loadSession();
     if (!session?.discordId) return { ok: true, isPro: false, role: 'free', user: null, proExpires: null };
 
-    const prof = await getProfile(session.discordId);
+    const prof = await getProfile();
     setupRealtimeMail(session.discordId);
 
     const role  = prof.role;
@@ -390,7 +409,6 @@ ipcMain.handle('get-auth-status', async () => {
       proExpires: prof.proExpires || null,
     };
   } catch(e) {
-    console.error('[main] get-auth-status error:', e.message);
     return { ok: true, isPro: false, role: 'free', user: null, proExpires: null };
   }
 });
@@ -402,13 +420,17 @@ const EDGE_FN_URL = `${SUPABASE_URL}/functions/v1/super-endpoint`;
 
 ipcMain.handle('open-discord-auth', async () => {
   try {
+    // C-3: Generate a fresh state nonce per login attempt to prevent CSRF
+    _oauthState = require('crypto').randomBytes(16).toString('hex');
+
     const authUrl = `https://discord.com/api/oauth2/authorize?${new URLSearchParams({
       client_id:     '1491287833598496929',
       redirect_uri:  EDGE_FN_URL,
       response_type: 'code',
       scope:         'identify',
+      state:         _oauthState,
     })}`;
-    console.log('[main] open-discord-auth popup URL:', authUrl?.slice(0, 120));
+    if (!app.isPackaged) console.log('[main] open-discord-auth popup URL:', authUrl?.slice(0, 80));
 
     const popup = new BrowserWindow({
       width: 520,
@@ -425,14 +447,13 @@ ipcMain.handle('open-discord-auth', async () => {
     // Discord's web page can't hand off to the native Discord desktop app.
     const handleRedirect = (url) => {
       if (url.startsWith('archerage://')) {
-        console.log('[main] OAuth popup intercepted archerage:// redirect:', url.slice(0, 120));
+        if (!app.isPackaged) console.log('[main] OAuth popup intercepted archerage:// redirect');
         handleOAuthDeepLink(url);
         setImmediate(() => { try { popup.close(); } catch {} });
         return true;
       }
       if (url.startsWith('discord://')) {
-        console.log('[main] OAuth popup blocked discord:// navigation (keeping auth in popup)');
-        return true; // block it
+        return true; // block native Discord app handoff
       }
       return false;
     };
@@ -467,40 +488,43 @@ ipcMain.handle('open-discord-auth', async () => {
 });
 
 // Called by renderer when the Edge Function redirects back to archerage://auth/callback.
-// The Edge Function already exchanged the code — we just receive identity params.
+// The Edge Function mints a signed JWT — we verify the state nonce then store the token.
 ipcMain.handle('handle-oauth-callback', async (event, callbackUrl) => {
   try {
-    console.log('[main] handle-oauth-callback URL:', callbackUrl);
-    const url       = new URL(callbackUrl);
-    const error     = url.searchParams.get('error');
+    const url   = new URL(callbackUrl);
+    const error = url.searchParams.get('error');
     if (error) return { ok: false, error: decodeURIComponent(error) };
 
-    const discordId = url.searchParams.get('discord_id');
-    const name      = url.searchParams.get('name')   || 'Unknown';
-    const avatar    = url.searchParams.get('avatar') || null;
-
-    if (!discordId) {
-      console.error('[main] No discord_id in callback URL:', callbackUrl);
-      return { ok: false, error: 'No discord_id in callback' };
+    // C-3: Verify state nonce to prevent CSRF via malicious deep links
+    const returnedState = url.searchParams.get('state') || '';
+    if (!_oauthState || returnedState !== _oauthState) {
+      _oauthState = null;
+      return { ok: false, error: 'OAuth state mismatch — possible CSRF. Please try again.' };
     }
+    _oauthState = null; // consume nonce — one-time use
 
-    // Save minimal session — no tokens, no email
-    saveSession({ discordId, discordName: name, avatar: avatar || null });
+    const token = url.searchParams.get('token');
+    if (!token) return { ok: false, error: 'No session token in callback' };
+
+    // Decode payload for local display only — signature is verified by app-api
+    const payload = decodeJWTPayload(token);
+    if (!payload?.discord_id) return { ok: false, error: 'Invalid session token' };
+
+    const discordId = payload.discord_id;
+    const name      = payload.name   || 'Unknown';
+    const avatar    = payload.avatar || null;
+
+    // Store session including the signed JWT for all future callAppApi calls
+    saveSession({ discordId, discordName: name, avatar, sessionToken: token });
     setupRealtimeMail(discordId);
 
-    // Fetch live role from DB — never trust URL params for role
-    const prof  = await getProfile(discordId);
+    // Fetch live role from DB — the JWT is used for auth, role comes from DB
+    const prof  = await getProfile();
     const isPro = ['pro', 'curator', 'staff', 'admin', 'dev'].includes(prof.role);
 
     return {
       ok:   true,
-      auth: {
-        ok:         true,
-        isPro,
-        role:       prof.role,
-        user:       { id: discordId, name, avatar: avatar || null },
-        proExpires: prof.proExpires || null,
-      },
+      auth: { ok: true, isPro, role: prof.role, user: { id: discordId, name, avatar }, proExpires: prof.proExpires || null },
     };
   } catch(e) { return { ok: false, error: e.message }; }
 });
@@ -554,7 +578,11 @@ ipcMain.handle('get-community-prices', async () => {
 
 ipcMain.handle('submit-community-price', async (event, { itemName, price }) => {
   try {
-    const { data, error } = await supabase.rpc('submit_price', { p_item_name: itemName, p_price: price });
+    // M-2: Validate inputs
+    const safeName = String(itemName || '').trim().replace(/[\r\n,]/g, '').slice(0, 200);
+    if (!safeName) return { ok: false, error: 'Invalid item name' };
+    if (typeof price !== 'number' || !isFinite(price) || price < 0) return { ok: false, error: 'Invalid price' };
+    const { data, error } = await supabase.rpc('submit_price', { p_item_name: safeName, p_price: price });
     if (error) return { ok: false, error: error.message };
     return { ok: true, result: data };
   } catch(e) { return { ok: false, error: e.message }; }
@@ -563,9 +591,12 @@ ipcMain.handle('submit-community-price', async (event, { itemName, price }) => {
 ipcMain.handle('bulk-submit-community-prices', async (event, items) => {
   try {
     if (!Array.isArray(items) || items.length === 0) return { ok: false, error: 'No items' };
+    if (items.length > 500) return { ok: false, error: 'Too many items in one batch' };
     let accepted = 0, rejected = 0, gray = 0;
     for (const { item_name, price } of items) {
-      const { data, error } = await supabase.rpc('submit_price', { p_item_name: item_name, p_price: price });
+      const safeName = String(item_name || '').trim().replace(/[\r\n,]/g, '').slice(0, 200);
+      if (!safeName || typeof price !== 'number' || !isFinite(price) || price < 0) continue;
+      const { data, error } = await supabase.rpc('submit_price', { p_item_name: safeName, p_price: price });
       if (!error && data) {
         if (data.status === 'accepted') accepted++;
         else if (data.status === 'gray') gray++;
@@ -586,49 +617,23 @@ ipcMain.handle('get-item-price-history', async (event, { itemName }) => {
 
 ipcMain.handle('admin-get-flagged-prices', async () => {
   try {
-    await enforceRole('staff');
-    const { data, error } = await supabase.rpc('admin_get_flagged_prices');
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, items: data || [] };
+    return await callAppApi('admin-get-flagged-prices');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('admin-accept-price', async (event, { itemName, price }) => {
   try {
-    await enforceRole('staff');
-    const { error } = await supabase.rpc('admin_accept_price', { p_item_name: itemName, p_price: price });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('admin-accept-price', { itemName, price });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('admin-reject-price', async (event, { itemName }) => {
   try {
-    await enforceRole('staff');
-    const { error } = await supabase.rpc('admin_reject_price', { p_item_name: itemName });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+    return await callAppApi('admin-reject-price', { itemName });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
-// Legacy token handlers kept for compatibility
-ipcMain.handle('store-token', (event, token) => {
-  try {
-    if (typeof token !== 'string' || token.length === 0 || token.length > 8192) {
-      return { ok: false, error: 'Invalid token' };
-    }
-    if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'safeStorage unavailable' };
-    ensureAppDataDir();
-    const encrypted = safeStorage.encryptString(token);
-    fs.writeFileSync(path.join(APP_DATA_DIR, '.auth'), encrypted);
-    return { ok: true };
-  } catch(e) { return { ok: false, error: e.message }; }
-});
-
-ipcMain.handle('clear-token', () => {
-  clearSession();
-  return { ok: true };
-});
+// M-6: Legacy store-token / clear-token handlers removed (dead code from v1.0)
 
 // ─── IPC: NATIVE NOTIFICATIONS ───────────────────────────────────────────────
 
@@ -679,10 +684,7 @@ ipcMain.handle('wiki-submit', async (event, { title, category, content, discordN
 
 ipcMain.handle('wiki-admin-get-submissions', async () => {
   try {
-    await enforceRole('curator');
-    const { data, error } = await supabase.rpc('admin_get_wiki_submissions');
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, submissions: data || [] };
+    return await callAppApi('wiki-admin-get-submissions');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -798,16 +800,19 @@ ipcMain.handle('pick-folder', async (event, { defaultPath } = {}) => {
 ipcMain.handle('validate-addon-path', (event, { targetPath } = {}) => {
   if (!targetPath) return { ok: true, valid: false, reason: 'No path provided.' };
   const resolved = path.resolve(targetPath);
-  // Must be inside the user's home directory
   if (!resolved.startsWith(os.homedir())) {
     return { ok: true, valid: false, reason: 'Path must be inside your user folder.' };
   }
-  // Must exist on disk
   if (!fs.existsSync(resolved)) {
     return { ok: true, valid: false, reason: 'Folder does not exist.' };
   }
-  // Must contain "ArcheRage" somewhere in the path (handles OneDrive, custom installs)
-  if (!resolved.toLowerCase().includes('archerage')) {
+  // H-3: Dereference symlinks/junctions before checking to prevent bypass
+  let real = resolved;
+  try { real = fs.realpathSync(resolved); } catch { /* keep resolved */ }
+  if (!real.startsWith(os.homedir())) {
+    return { ok: true, valid: false, reason: 'Path resolves outside your user folder.' };
+  }
+  if (!real.toLowerCase().includes('archerage')) {
     return { ok: true, valid: false, reason: 'This doesn\'t look like an ArcheRage folder. Make sure you select the ArcheRage\\Addon folder.' };
   }
   return { ok: true, valid: true, reason: null };
@@ -880,10 +885,7 @@ ipcMain.handle('recipe-submit', async (event, { output, outputQty, profession, l
 
 ipcMain.handle('recipe-admin-get-submissions', async () => {
   try {
-    await enforceRole('curator');
-    const { data, error } = await supabase.rpc('admin_get_recipe_submissions');
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, submissions: data || [] };
+    return await callAppApi('recipe-admin-get-submissions');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -912,6 +914,28 @@ ipcMain.handle('recipe-get-approved', async () => {
   } catch(e) { return { ok: false, recipes: [], error: e.message }; }
 });
 
+// ─── IPC: STRIPE CHECKOUT ────────────────────────────────────────────────────
+// Runs in main process (Node.js) so the session token never touches the renderer.
+
+ipcMain.handle('create-checkout', async () => {
+  try {
+    const session = loadSession();
+    if (!session?.sessionToken) return { ok: false, error: 'Not authenticated' };
+    const res = await fetch(CHECKOUT_API_URL, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey':        SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${session.sessionToken}`,
+      },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (data.url) shell.openExternal(data.url);
+    return data;
+  } catch(e) { return { ok: false, error: e.message }; }
+});
+
 // ─── WINDOW ───────────────────────────────────────────────────────────────────
 
 function createWindow() {
@@ -925,10 +949,10 @@ function createWindow() {
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: preloadPath,
-      nodeIntegration: true,
-      contextIsolation: false,
-      sandbox: false,
+      preload:          preloadPath,
+      contextIsolation: true,   // C-2: isolate renderer from Node globals
+      nodeIntegration:  false,  // C-2: renderer cannot require() Node modules
+      sandbox:          false,  // keep false — preload uses require('electron')
     }
   });
   mainWindow = win;

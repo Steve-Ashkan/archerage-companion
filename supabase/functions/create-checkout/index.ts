@@ -1,21 +1,46 @@
-// Creates a Stripe Checkout session for a given discord_id.
-// Returns { url } — the hosted checkout URL to open in the system browser.
+// Creates a Stripe Checkout session for the authenticated caller.
+// Caller identity comes from the verified session JWT — never the request body.
 
 import Stripe from 'https://esm.sh/stripe@14?target=deno';
 
-const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// ── JWT verification (same as app-api) ───────────────────────────────────────
+
+async function verifyToken(authHeader: string | null): Promise<{ discord_id: string } | null> {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7);
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [header, body, sig] = parts;
+    const data    = `${header}.${body}`;
+    const enc     = new TextEncoder();
+    const secret  = Deno.env.get('SESSION_JWT_SECRET')!;
+    const key     = await crypto.subtle.importKey(
+      'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+    );
+    const sigBytes = Uint8Array.from(
+      atob(sig.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)
+    );
+    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, enc.encode(data));
+    if (!valid) return null;
+    const payload = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/')));
+    if (payload.exp < Date.now() / 1000) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method === 'OPTIONS') return new Response('ok', { status: 200 });
 
   try {
-    const { discord_id } = await req.json();
-    if (!discord_id) {
-      return new Response(JSON.stringify({ error: 'Missing discord_id' }), {
-        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+    const caller = await verifyToken(req.headers.get('authorization'));
+    if (!caller?.discord_id) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -25,7 +50,7 @@ Deno.serve(async (req) => {
 
     const session = await stripe.checkout.sessions.create({
       mode:                'subscription',
-      client_reference_id: discord_id,
+      client_reference_id: caller.discord_id,
       line_items: [{ price: Deno.env.get('STRIPE_PRICE_ID')!, quantity: 1 }],
       subscription_data:   { trial_period_days: 7 },
       success_url: 'https://github.com/Steve-Ashkan/archerage-companion?payment=success',
@@ -33,13 +58,13 @@ Deno.serve(async (req) => {
     });
 
     return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...CORS, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
     });
 
   } catch (e) {
     console.error('[create-checkout]', e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
+      status: 500, headers: { 'Content-Type': 'application/json' },
     });
   }
 });

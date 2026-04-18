@@ -903,17 +903,11 @@ window.startCheckout = async function() {
   }
 
   try {
-    const res = await fetch('https://ywkyhtvfdbtybevggonb.supabase.co/functions/v1/create-checkout', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ discord_id: auth.user.id }),
-    });
-
-    const data = await res.json();
-    if (!data.url) throw new Error(data.error || data.message || JSON.stringify(data));
-
-    // Open Stripe checkout in system browser
-    window.electronAPI?.openExternal(data.url);
+    // Runs through main process — session token stays in main, never touches renderer
+    const data = await window.electronAPI?.createCheckout();
+    if (!data) throw new Error('No response from checkout handler');
+    if (!data.url && data.error) throw new Error(data.error);
+    // URL is opened by main process (shell.openExternal) — nothing more needed here
   } catch (e) {
     alert('Could not start checkout: ' + e.message);
   }
