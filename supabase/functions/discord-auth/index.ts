@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       name:       user.name,
       avatar:     user.avatar || '',
       iat:        now,
-      exp:        now + 60 * 60 * 24 * 30, // 30 days
+      exp:        now + 60 * 60 * 24 * 7, // 7 days
     });
 
     // Redirect to Electron deep link — token + state for CSRF verification

@@ -26,7 +26,10 @@ async function verifyToken(authHeader: string | null): Promise<{ discord_id: str
     const valid = await crypto.subtle.verify('HMAC', key, sigBytes, enc.encode(data));
     if (!valid) return null;
     const payload = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/')));
-    if (payload.exp < Date.now() / 1000) return null;
+    // H-3: Require exp to be present and numeric — undefined exp would pass < check
+    if (typeof payload.exp !== 'number' || payload.exp < Date.now() / 1000) return null;
+    // Sanity: reject tokens issued more than 60s in the future (clock skew guard)
+    if (typeof payload.iat === 'number' && payload.iat > Date.now() / 1000 + 60) return null;
     return payload;
   } catch {
     return null;
@@ -55,8 +58,26 @@ function hasRole(userRole: string, required: string): boolean {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+// Helper: validate a numeric ID param (Supabase bigint PKs)
+function numId(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+// Helper: validate a Discord snowflake (17-20 digit numeric string)
+function snowflake(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return /^\d{17,20}$/.test(s) ? s : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200 });
+
+  // M-5: Reject browser-originated requests (Electron app sends no Origin header)
+  if (req.headers.get('origin')) {
+    return json({ ok: false, error: 'Browser access forbidden' }, 403);
+  }
 
   try {
     const body = await req.json();
@@ -119,28 +140,34 @@ Deno.serve(async (req) => {
       if (!hasRole(callerRole, 'admin')) return json({ ok: false, error: 'Requires admin role' }, 403);
       const VALID_ROLES = ['free', 'pro', 'curator', 'staff', 'admin', 'dev'];
       if (!VALID_ROLES.includes(params.role)) return json({ ok: false, error: 'Invalid role' });
-      const { error } = await db.from('profiles').update({ role: params.role }).eq('discord_id', params.userId);
+      const userId = snowflake(params.userId);
+      if (!userId) return json({ ok: false, error: 'Invalid userId' });
+      const { error } = await db.from('profiles').update({ role: params.role }).eq('discord_id', userId);
       if (error) return json({ ok: false, error: error.message });
       return json({ ok: true });
     }
 
     if (action === 'admin-grant-pro') {
       if (!hasRole(callerRole, 'admin')) return json({ ok: false, error: 'Requires admin role' }, 403);
+      const userId = snowflake(params.userId);
+      if (!userId) return json({ ok: false, error: 'Invalid userId' });
       const days = Math.max(1, Math.min(3650, parseInt(params.days) || 30));
       const expires = new Date();
       expires.setDate(expires.getDate() + days);
       const { error } = await db.from('profiles')
         .update({ role: 'pro', pro_expires_at: expires.toISOString() })
-        .eq('discord_id', params.userId);
+        .eq('discord_id', userId);
       if (error) return json({ ok: false, error: error.message });
       return json({ ok: true });
     }
 
     if (action === 'admin-revoke-pro') {
       if (!hasRole(callerRole, 'admin')) return json({ ok: false, error: 'Requires admin role' }, 403);
+      const userId = snowflake(params.userId);
+      if (!userId) return json({ ok: false, error: 'Invalid userId' });
       const { error } = await db.from('profiles')
         .update({ role: 'free', pro_expires_at: null })
-        .eq('discord_id', params.userId);
+        .eq('discord_id', userId);
       if (error) return json({ ok: false, error: error.message });
       return json({ ok: true });
     }
@@ -208,16 +235,18 @@ Deno.serve(async (req) => {
 
     if (action === 'wiki-admin-approve') {
       if (!hasRole(callerRole, 'curator')) return json({ ok: false, error: 'Requires curator role' }, 403);
+      const id = numId(params.id);
+      if (!id) return json({ ok: false, error: 'Invalid id' });
       const { data: sub } = await db.from('wiki_submissions')
-        .select('submitter_discord_id').eq('id', params.id).single();
+        .select('submitter_discord_id').eq('id', id).single();
       const { error } = await db.from('wiki_submissions')
         .update({ status: 'approved', reviewed_at: new Date().toISOString() })
-        .eq('id', params.id);
+        .eq('id', id);
       if (error) return json({ ok: false, error: error.message });
       if (sub?.submitter_discord_id) {
         await db.rpc('award_arc_points', {
           p_discord_id: sub.submitter_discord_id, p_points: 25,
-          p_action_type: 'wiki_approved', p_reference_id: String(params.id),
+          p_action_type: 'wiki_approved', p_reference_id: String(id),
         });
       }
       return json({ ok: true });
@@ -225,9 +254,11 @@ Deno.serve(async (req) => {
 
     if (action === 'wiki-admin-reject') {
       if (!hasRole(callerRole, 'curator')) return json({ ok: false, error: 'Requires curator role' }, 403);
+      const id = numId(params.id);
+      if (!id) return json({ ok: false, error: 'Invalid id' });
       const { error } = await db.from('wiki_submissions')
         .update({ status: 'rejected', feedback: str(params.feedback, 1000), reviewed_at: new Date().toISOString() })
-        .eq('id', params.id);
+        .eq('id', id);
       if (error) return json({ ok: false, error: error.message });
       return json({ ok: true });
     }
@@ -274,23 +305,27 @@ Deno.serve(async (req) => {
 
     if (action === 'arc-fulfill-redemption') {
       if (!hasRole(callerRole, 'admin')) return json({ ok: false, error: 'Requires admin role' }, 403);
+      const id = numId(params.id);
+      if (!id) return json({ ok: false, error: 'Invalid id' });
       const { error } = await db.from('arc_redemptions')
         .update({ status: 'fulfilled', notes: str(params.notes, 500), fulfilled_at: new Date().toISOString() })
-        .eq('id', params.id);
+        .eq('id', id);
       if (error) return json({ ok: false, error: error.message });
       return json({ ok: true });
     }
 
     if (action === 'arc-cancel-redemption') {
       if (!hasRole(callerRole, 'admin')) return json({ ok: false, error: 'Requires admin role' }, 403);
+      const id = numId(params.id);
+      if (!id) return json({ ok: false, error: 'Invalid id' });
       const { data: r } = await db.from('arc_redemptions')
-        .select('discord_id, points_spent, status').eq('id', params.id).single();
-      const { error } = await db.from('arc_redemptions').update({ status: 'cancelled' }).eq('id', params.id);
+        .select('discord_id, points_spent, status').eq('id', id).single();
+      const { error } = await db.from('arc_redemptions').update({ status: 'cancelled' }).eq('id', id);
       if (error) return json({ ok: false, error: error.message });
       if (r?.discord_id && r?.status === 'pending') {
         await db.rpc('award_arc_points', {
           p_discord_id: r.discord_id, p_points: r.points_spent,
-          p_action_type: 'refund', p_reference_id: String(params.id),
+          p_action_type: 'refund', p_reference_id: String(id),
         });
       }
       return json({ ok: true });
@@ -308,9 +343,11 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'arc-mark-mail-read') {
+      const id = numId(params.id);
+      if (!id) return json({ ok: false, error: 'Invalid id' });
       const { error } = await db.from('user_mail')
         .update({ is_read: true })
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('recipient_discord_id', discord_id); // only own mail
       if (error) return json({ ok: false, error: error.message });
       return json({ ok: true });
@@ -318,9 +355,11 @@ Deno.serve(async (req) => {
 
     if (action === 'arc-lookup-user') {
       if (!hasRole(callerRole, 'staff')) return json({ ok: false, error: 'Requires staff role' }, 403);
+      // L-6: Strip SQL wildcards to prevent user enumeration via ilike
+      const needle = (str(params.discordName, 100) || '').replace(/[%_]/g, '\\$&');
       const { data, error } = await db.from('profiles')
         .select('discord_id, discord_name, role, ign')
-        .ilike('discord_name', str(params.discordName, 100) || '')
+        .ilike('discord_name', needle)
         .limit(5);
       if (error) return json({ ok: false, error: error.message });
       const user = data?.[0] ? { id: data[0].discord_id, ...data[0] } : null;
@@ -329,12 +368,14 @@ Deno.serve(async (req) => {
 
     if (action === 'arc-send-mail') {
       if (!hasRole(callerRole, 'staff')) return json({ ok: false, error: 'Requires staff role' }, 403);
-      const subject = str(params.subject, 200);
-      const body    = str(params.body,    4096);
+      const subject     = str(params.subject, 200);
+      const body        = str(params.body,    4096);
+      const recipientId = snowflake(params.recipientId);
       if (!subject || !body) return json({ ok: false, error: 'Missing subject or body' });
+      if (!recipientId) return json({ ok: false, error: 'Invalid recipientId' });
       const { error } = await db.from('user_mail').insert({
         sender_discord_id:    discord_id,
-        recipient_discord_id: params.recipientId,
+        recipient_discord_id: recipientId,
         subject, body,
         reference_id: str(params.referenceId, 100),
       });
@@ -371,14 +412,22 @@ Deno.serve(async (req) => {
 
     if (action === 'recipe-admin-approve') {
       if (!hasRole(callerRole, 'curator')) return json({ ok: false, error: 'Requires curator role' }, 403);
-      const { id, output, outputQty, profession, labor, materials, notes } = params;
+      const id = numId(params.id);
+      if (!id) return json({ ok: false, error: 'Invalid id' });
+      // M-6: Validate curator-supplied fields with same caps as recipe-submit
+      const output     = str(params.output, 200);
+      if (!output) return json({ ok: false, error: 'Missing output' });
+      const outputQty  = Math.max(1, parseInt(params.outputQty) || 1);
+      const labor      = Math.max(0, parseInt(params.labor) || 0);
+      const profession = str(params.profession, 100);
+      const materials  = Array.isArray(params.materials) ? params.materials.slice(0, 50) : [];
       const { data: sub } = await db.from('recipe_submissions')
         .select('submitter_discord_id').eq('id', id).single();
       const { error } = await db.from('recipe_submissions')
         .update({
           status: 'approved', output,
           output_qty: outputQty, profession, labor, materials,
-          notes: str(notes, 2000), reviewed_at: new Date().toISOString(),
+          notes: str(params.notes, 2000), reviewed_at: new Date().toISOString(),
         })
         .eq('id', id);
       if (error) return json({ ok: false, error: error.message });
@@ -393,9 +442,11 @@ Deno.serve(async (req) => {
 
     if (action === 'recipe-admin-reject') {
       if (!hasRole(callerRole, 'curator')) return json({ ok: false, error: 'Requires curator role' }, 403);
+      const id = numId(params.id);
+      if (!id) return json({ ok: false, error: 'Invalid id' });
       const { error } = await db.from('recipe_submissions')
         .update({ status: 'rejected', feedback: str(params.feedback, 1000), reviewed_at: new Date().toISOString() })
-        .eq('id', params.id);
+        .eq('id', id);
       if (error) return json({ ok: false, error: error.message });
       return json({ ok: true });
     }

@@ -24,7 +24,9 @@ async function verifyToken(authHeader: string | null): Promise<{ discord_id: str
     const valid = await crypto.subtle.verify('HMAC', key, sigBytes, enc.encode(data));
     if (!valid) return null;
     const payload = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/')));
-    if (payload.exp < Date.now() / 1000) return null;
+    // H-3: Require exp to be present and numeric
+    if (typeof payload.exp !== 'number' || payload.exp < Date.now() / 1000) return null;
+    if (typeof payload.iat === 'number' && payload.iat > Date.now() / 1000 + 60) return null;
     return payload;
   } catch {
     return null;
@@ -35,6 +37,13 @@ async function verifyToken(authHeader: string | null): Promise<{ discord_id: str
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200 });
+
+  // M-5: Reject browser-originated requests
+  if (req.headers.get('origin')) {
+    return new Response(JSON.stringify({ error: 'Browser access forbidden' }), {
+      status: 403, headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   try {
     const caller = await verifyToken(req.headers.get('authorization'));

@@ -46,24 +46,42 @@ function decodeJWTPayload(token) {
   } catch { return null; }
 }
 
-// ─── REALTIME: USER MAIL ──────────────────────────────────────────────────────
-let _mailChannel = null;
+// ─── MAIL POLLING ─────────────────────────────────────────────────────────────
+// C-1/L-5: Realtime subscription removed — it used USING(true) RLS which exposed
+// all mail to any anon reader. Replaced with periodic poll through app-api (JWT-gated).
 
-function setupRealtimeMail(discordId) {
-  if (_mailChannel) { supabase.removeChannel(_mailChannel); _mailChannel = null; }
+let _mailPollInterval = null;
+const _seenMailIds    = new Set();
+
+async function startMailPoll(discordId) {
+  stopMailPoll();
   if (!discordId) return;
 
-  _mailChannel = supabase
-    .channel(`user-mail-${discordId}`)
-    .on('postgres_changes', {
-      event: 'INSERT',
-      schema: 'public',
-      table: 'user_mail',
-      filter: `recipient_discord_id=eq.${discordId}`,
-    }, (payload) => {
-      if (mainWindow) mainWindow.webContents.send('arc-new-mail', payload.new);
-    })
-    .subscribe();
+  // Seed known IDs on first load — don't fire events for existing mail
+  try {
+    const data = await callAppApi('arc-get-my-mail');
+    if (data.ok && Array.isArray(data.mail)) {
+      for (const m of data.mail) _seenMailIds.add(m.id);
+    }
+  } catch {}
+
+  _mailPollInterval = setInterval(async () => {
+    try {
+      const data = await callAppApi('arc-get-my-mail');
+      if (!data.ok || !Array.isArray(data.mail)) return;
+      for (const m of data.mail) {
+        if (!_seenMailIds.has(m.id)) {
+          _seenMailIds.add(m.id);
+          if (!m.is_read && mainWindow) mainWindow.webContents.send('arc-new-mail', m);
+        }
+      }
+    } catch {}
+  }, 60 * 1000); // poll every 60 seconds
+}
+
+function stopMailPoll() {
+  if (_mailPollInterval) { clearInterval(_mailPollInterval); _mailPollInterval = null; }
+  _seenMailIds.clear();
 }
 
 // ─── PATHS ────────────────────────────────────────────────────────────────────
@@ -215,9 +233,9 @@ ipcMain.handle('request-devtools', async () => {
 });
 
 // ─── OAUTH STATE ─────────────────────────────────────────────────────────────
-// Random nonce generated per login attempt — verified in handle-oauth-callback
-// to prevent CSRF attacks via malicious deep links.
-let _oauthState = null;
+// M-4: Use a Set so multiple concurrent login attempts each get their own nonce.
+// Each nonce is consumed (deleted) on first use — one-time only.
+const _oauthStates = new Set();
 
 // ─── MAIN WINDOW REF ──────────────────────────────────────────────────────────
 // Kept at module scope so handleOAuthDeepLink always sends to the main window,
@@ -401,7 +419,7 @@ ipcMain.handle('get-auth-status', async () => {
     if (!session?.discordId) return { ok: true, isPro: false, role: 'free', user: null, proExpires: null };
 
     const prof = await getProfile();
-    setupRealtimeMail(session.discordId);
+    startMailPoll(session.discordId);
 
     const role  = prof.role;
     const isPro = ['pro', 'curator', 'staff', 'admin', 'dev'].includes(role);
@@ -429,15 +447,16 @@ const EDGE_FN_URL = `${SUPABASE_URL}/functions/v1/super-endpoint`;
 
 ipcMain.handle('open-discord-auth', async () => {
   try {
-    // C-3: Generate a fresh state nonce per login attempt to prevent CSRF
-    _oauthState = require('crypto').randomBytes(16).toString('hex');
+    // C-3/M-4: Generate a fresh state nonce per login attempt (stored in Set)
+    const state = require('crypto').randomBytes(16).toString('hex');
+    _oauthStates.add(state);
 
     const authUrl = `https://discord.com/api/oauth2/authorize?${new URLSearchParams({
       client_id:     '1491287833598496929',
       redirect_uri:  EDGE_FN_URL,
       response_type: 'code',
       scope:         'identify',
-      state:         _oauthState,
+      state,
     })}`;
     if (!app.isPackaged) console.log('[main] open-discord-auth popup URL:', authUrl?.slice(0, 80));
 
@@ -504,13 +523,13 @@ ipcMain.handle('handle-oauth-callback', async (event, callbackUrl) => {
     const error = url.searchParams.get('error');
     if (error) return { ok: false, error: decodeURIComponent(error) };
 
-    // C-3: Verify state nonce to prevent CSRF via malicious deep links
+    // C-3/M-4: Verify state nonce — consume from Set on match (one-time use)
     const returnedState = url.searchParams.get('state') || '';
-    if (!_oauthState || returnedState !== _oauthState) {
-      _oauthState = null;
+    if (!returnedState || !_oauthStates.has(returnedState)) {
+      _oauthStates.clear();
       return { ok: false, error: 'OAuth state mismatch — possible CSRF. Please try again.' };
     }
-    _oauthState = null; // consume nonce — one-time use
+    _oauthStates.delete(returnedState); // consume nonce — one-time use
 
     const token = url.searchParams.get('token');
     if (!token) return { ok: false, error: 'No session token in callback' };
@@ -525,7 +544,7 @@ ipcMain.handle('handle-oauth-callback', async (event, callbackUrl) => {
 
     // Store session including the signed JWT for all future callAppApi calls
     saveSession({ discordId, discordName: name, avatar, sessionToken: token });
-    setupRealtimeMail(discordId);
+    startMailPoll(discordId);
 
     // Fetch live role from DB — the JWT is used for auth, role comes from DB
     const prof  = await getProfile();
@@ -541,7 +560,7 @@ ipcMain.handle('handle-oauth-callback', async (event, callbackUrl) => {
 // Sign out — clears local session. No Supabase Auth session to revoke.
 ipcMain.handle('sign-out', () => {
   clearSession();
-  setupRealtimeMail(null);
+  stopMailPoll();
   return { ok: true };
 });
 
@@ -834,8 +853,8 @@ ipcMain.handle('check-addon-status', (event, { targetBase } = {}) => {
     return { ok: false, error: 'Invalid path' };
   }
 
-  console.log('[addon] bundledDir:', bundledDir);
-  console.log('[addon] targetBase:', base);
+  if (!app.isPackaged) console.log('[addon] bundledDir:', bundledDir);
+  if (!app.isPackaged) console.log('[addon] targetBase:', base);
 
   const status = {};
   for (const name of ADDON_NAMES) {
@@ -843,7 +862,7 @@ ipcMain.handle('check-addon-status', (event, { targetBase } = {}) => {
     const target  = path.join(base, name);
     const bundledExists = fs.existsSync(bundled);
     const installed     = fs.existsSync(target);
-    console.log(`[addon] ${name} — bundled: ${bundledExists} (${bundled}), installed: ${installed} (${target})`);
+    if (!app.isPackaged) console.log(`[addon] ${name} — bundled: ${bundledExists}, installed: ${installed}`);
     status[name] = { bundledExists, installed };
   }
   return { ok: true, status, targetBase: base };
@@ -855,6 +874,14 @@ ipcMain.handle('install-addons', (event, { names, targetBase } = {}) => {
   const bundledDir = getBundledAddonsDir();
   const base       = targetBase ? path.resolve(targetBase) : path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
   if (targetBase && !base.startsWith(os.homedir())) {
+    return { ok: false, error: 'Invalid path' };
+  }
+  // H-2: Dereference symlinks/junctions before writing — prevents escaping the
+  // user directory via a symlink that points somewhere outside homedir.
+  // base may not exist yet (first install), so fall back to base on error.
+  let realBase = base;
+  try { realBase = fs.realpathSync(base); } catch { /* base doesn't exist yet — ok */ }
+  if (!realBase.startsWith(os.homedir())) {
     return { ok: false, error: 'Invalid path' };
   }
   // Validate names against known addon list to prevent path traversal via name param
@@ -949,7 +976,7 @@ ipcMain.handle('create-checkout', async () => {
 
 function createWindow() {
   const preloadPath = path.join(__dirname, 'preload.js');
-  console.log('[main] preload path:', preloadPath);
+  if (!app.isPackaged) console.log('[main] preload path:', preloadPath);
 
   // Apply restricted menu before window opens
   Menu.setApplicationMenu(buildAppMenu());
@@ -959,9 +986,9 @@ function createWindow() {
     height: 800,
     webPreferences: {
       preload:          preloadPath,
-      contextIsolation: true,   // C-2: isolate renderer from Node globals
-      nodeIntegration:  false,  // C-2: renderer cannot require() Node modules
-      sandbox:          false,  // keep false — preload uses require('electron')
+      contextIsolation: true,   // isolate renderer from Node globals
+      nodeIntegration:  false,  // renderer cannot require() Node modules
+      sandbox:          true,   // M-1: OS-level sandbox; preload only uses contextBridge/ipcRenderer which are sandbox-safe
     }
   });
   mainWindow = win;
