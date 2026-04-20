@@ -1,8 +1,81 @@
 import { appState } from "../state.js";
 import { escapeHtml, formatGold, jsEscape, renderMaterialsGrid } from "../utils.js";
 
-const LOCAL_KEY = "miscTargetState";
-const FILTER_KEY = "miscCategoryFilter";
+const LOCAL_KEY       = "miscTargetState";
+const FILTER_KEY      = "miscCategoryFilter";
+const LUNAGEM_KEY     = "miscLunagemCalc";
+
+// ─── LUNAGEM CONSTANTS ────────────────────────────────────────────────────────
+
+const LUNAGEM_TYPES = ['Fireglow', 'Waveglow', 'Copperglow', 'Earthglow', 'Galeglow', 'Sunglow'];
+
+const LUNAGEM_TYPE_COLORS = {
+  Fireglow:   '#ef4444',
+  Waveglow:   '#60a5fa',
+  Copperglow: '#2dd4bf',
+  Earthglow:  '#4ade80',
+  Galeglow:   '#fbbf24',
+  Sunglow:    '#f472b6',
+};
+
+// Cumulative base-ingredient counts per tier.
+// Splendid = 1 base + 20 lunarite + 10 sturdy ingots
+// Glorious = 1 Splendid + 30 lunarite + 30 sturdy ingots
+//          = 1 base + 50 lunarite + 40 sturdy ingots (combined)
+const LUNAGEM_TIERS = {
+  splendid: {
+    label: 'Splendid', lunarite: 20, sturdyIngots: 10,
+    steps: [
+      { label: 'Craft Splendid [T] Lunagem', items: [
+        { name: '[T] Lunagem', amount: 1 },
+        { name: 'Superior Glow Lunarite', amount: 20 },
+        { name: 'Sturdy Ingot', amount: 10 },
+      ]},
+    ],
+  },
+  glorious: {
+    label: 'Glorious', lunarite: 50, sturdyIngots: 40,
+    steps: [
+      { label: 'Step 1 — Craft Splendid [T] Lunagem', items: [
+        { name: '[T] Lunagem', amount: 1 },
+        { name: 'Superior Glow Lunarite', amount: 20 },
+        { name: 'Sturdy Ingot', amount: 10 },
+      ]},
+      { label: 'Step 2 — Craft Glorious [T] Lunagem', items: [
+        { name: 'Splendid [T] Lunagem', amount: 1 },
+        { name: 'Superior Glow Lunarite', amount: 30 },
+        { name: 'Sturdy Ingot', amount: 30 },
+      ]},
+    ],
+  },
+};
+
+// Per Sturdy Ingot (raw base):
+//   8 Iron Ingot  (×3 ore = 24 Iron Ore)
+//   1 Copper Ingot (×3 ore = 3 Copper Ore)
+//   1 Silver Ingot (×3 ore = 3 Silver Ore)
+//   1 Opaque Polish (3 Onyx Archeum Essence + 20 Azalea + 20 Narcissus)
+const PER_STURDY = { ironOre: 24, copperOre: 3, silverOre: 3, onyx: 3, azalea: 20, narcissus: 20 };
+
+function getLunagemCalcState() {
+  try { return JSON.parse(localStorage.getItem(LUNAGEM_KEY)) || {}; } catch { return {}; }
+}
+function saveLunagemCalcState(s) { localStorage.setItem(LUNAGEM_KEY, JSON.stringify(s)); }
+
+function getLunagemBaseItems(type, tierKey, qty) {
+  const tier = LUNAGEM_TIERS[tierKey] || LUNAGEM_TIERS.splendid;
+  const si   = tier.sturdyIngots * qty;
+  return [
+    { name: `${type} Lunagem`,         amount: qty },
+    { name: 'Superior Glow Lunarite',  amount: tier.lunarite * qty },
+    { name: 'Iron Ore',                amount: si * PER_STURDY.ironOre    },
+    { name: 'Copper Ore',              amount: si * PER_STURDY.copperOre  },
+    { name: 'Silver Ore',              amount: si * PER_STURDY.silverOre  },
+    { name: 'Onyx Archeum Essence',    amount: si * PER_STURDY.onyx       },
+    { name: 'Azalea',                  amount: si * PER_STURDY.azalea     },
+    { name: 'Narcissus',               amount: si * PER_STURDY.narcissus  },
+  ];
+}
 
 /* =========================
    STATE
@@ -33,20 +106,7 @@ function saveCategoryFilter(value) {
    DATA (from CSV + screenshot)
 ========================= */
 const MISC_DATA = [
-  {
-    category: "Lunagems",
-    title: "Glorious Lunagem",
-    items: [
-      {name: "Lunagem", amount: 1},
-      {name: "Superior Glow Lunarite", amount: 50},
-      {name: "Iron Ingot", amount: 320},
-      {name: "Copper Ingot", amount: 40},
-      {name: "Silver Ingot", amount: 40},
-      {name: "Onyx Archeum Essence", amount: 120},
-      {name: "Azalea", amount: 800},
-      {name: "Narcissus", amount: 800}
-    ]
-  },
+  { category: "Lunagems", type: "lunagem-calc" },
 
   // ── COSTUME / UNDERGARMENTS ───────────────────────────────────────────────
   {
@@ -184,6 +244,134 @@ function renderCategoryButtons(currentFilter) {
   `;
 }
 
+function renderLunagemCalc() {
+  const s       = getLunagemCalcState();
+  const type    = LUNAGEM_TYPES.includes(s.type) ? s.type : 'Fireglow';
+  const tierKey = LUNAGEM_TIERS[s.tierKey] ? s.tierKey : 'splendid';
+  const qty     = Math.max(1, Number(s.qty) || 1);
+
+  const color = LUNAGEM_TYPE_COLORS[type] || '#93c5fd';
+  const tier  = LUNAGEM_TIERS[tierKey];
+
+  // Type pills
+  const typePills = LUNAGEM_TYPES.map(t => {
+    const c      = LUNAGEM_TYPE_COLORS[t];
+    const active = t === type;
+    return `<button onclick="window.updateLunagemCalc('type','${jsEscape(t)}')"
+      style="padding:7px 18px;border-radius:20px;
+      border:1px solid ${active ? c : '#394252'};
+      background:${active ? c + '22' : 'transparent'};
+      color:${active ? c : '#8d99ab'};
+      font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;">
+      ${escapeHtml(t)}
+    </button>`;
+  }).join('');
+
+  // Tier pills
+  const tierPills = Object.entries(LUNAGEM_TIERS).map(([key, td]) => {
+    const active = key === tierKey;
+    return `<button onclick="window.updateLunagemCalc('tierKey','${jsEscape(key)}')"
+      style="padding:6px 16px;border-radius:20px;
+      border:1px solid ${active ? color : '#2a3040'};
+      background:${active ? color + '22' : 'transparent'};
+      color:${active ? color : '#566174'};
+      font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;">
+      ${escapeHtml(td.label)}
+    </button>`;
+  }).join('');
+
+  // Crafting steps (scale amounts by qty, substitute [T] with type name)
+  const stepsHtml = tier.steps.map(step => {
+    const label    = step.label.replace(/\[T\]/g, type);
+    const itemsHtml = step.items.map(item => {
+      const name   = item.name.replace(/\[T\]/g, type);
+      const amount = item.amount * qty;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;
+        background:#0f1923;border:1px solid #1e2d3d;border-radius:7px;">
+        <span style="font-size:13px;color:${color};font-weight:700;">${amount.toLocaleString()}×</span>
+        <span style="font-size:13px;color:#8d99ab;">${escapeHtml(name)}</span>
+      </div>`;
+    }).join('');
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+          color:#566174;margin-bottom:8px;">${escapeHtml(label)}</div>
+        <div style="display:flex;flex-direction:column;gap:5px;">${itemsHtml}</div>
+      </div>`;
+  }).join('');
+
+  // Base materials grid
+  const baseItems = getLunagemBaseItems(type, tierKey, qty);
+  const rows = baseItems.map(item => {
+    const required      = item.amount;
+    const inStorage     = Number(appState.storage[item.name] || 0);
+    const price         = Number(appState.prices[item.name]  || 0);
+    const stillNeed     = Math.max(0, required - inStorage);
+    const goldStillNeed = stillNeed * price;
+    return { name: item.name, required, inStorage, price, stillNeed, goldStillNeed, totalGold: required * price };
+  });
+
+  return `
+    <div class="card">
+      <h2 style="margin:0 0 4px;">Lunagem Calculator</h2>
+      <p class="notice" style="margin:0 0 20px;">
+        Select your lunagem type and target tier — we'll show the crafting steps and total base materials needed.
+      </p>
+
+      <!-- Type -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Lunagem Type</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">${typePills}</div>
+      </div>
+
+      <!-- Tier -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Target Tier</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">${tierPills}</div>
+      </div>
+
+      <!-- Result panel -->
+      <div style="background:#1a2535;border:1px solid #394252;border-radius:10px;padding:16px;margin-bottom:20px;">
+
+        <!-- Selected lunagem name -->
+        <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #394252;">
+          <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Crafting</div>
+          <div style="font-size:1.05em;font-weight:700;color:${color};">
+            ${escapeHtml(tier.label)} ${escapeHtml(type)} Lunagem
+          </div>
+        </div>
+
+        <!-- Qty -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+          <label style="font-size:0.88em;color:#8d99ab;white-space:nowrap;">How many to craft:</label>
+          <input type="number" min="1"
+            value="${qty}"
+            onchange="window.updateLunagemCalc('qty', this.value)"
+            style="width:90px;background:#131920;border:1px solid #394252;border-radius:6px;
+            color:#eef2f7;padding:8px 10px;font-size:0.9em;">
+        </div>
+
+        <!-- Crafting steps -->
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+          color:#566174;margin-bottom:12px;">Crafting Steps</div>
+        ${stepsHtml}
+      </div>
+
+      <!-- Total base materials -->
+      <div>
+        <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;
+          letter-spacing:0.05em;margin-bottom:12px;">
+          Total Base Materials for
+          <span style="color:${color};font-weight:700;">
+            ${qty.toLocaleString()} × ${escapeHtml(tier.label)} ${escapeHtml(type)} Lunagem
+          </span>
+        </div>
+        ${renderMaterialsGrid(rows)}
+      </div>
+    </div>
+  `;
+}
+
 function renderSynthiumTable(entry) {
   const rows = entry.stoneRows.map(r => `
     <tr>
@@ -302,6 +490,7 @@ function renderPotionCard(entry) {
 
 function renderMiscCard(entry) {
   // Route to correct renderer based on type
+  if (entry.type === "lunagem-calc")       return renderLunagemCalc();
   if (entry.type === "synthium-table")     return renderSynthiumTable(entry);
   if (entry.type === "synthium-full-cost") return renderSynthiumFullCost(entry);
   if (entry.category === "Potions")        return renderPotionCard(entry);
@@ -366,5 +555,13 @@ window.updateMiscTarget = (title, val) => {
 
 window.updateMiscCategoryFilter = (value) => {
   saveCategoryFilter(value);
+  window.renderCurrentPage();
+};
+
+window.updateLunagemCalc = function(field, value) {
+  const s = getLunagemCalcState();
+  if (field === 'qty') s.qty = Math.max(1, Number(value) || 1);
+  else s[field] = value;
+  saveLunagemCalcState(s);
   window.renderCurrentPage();
 };

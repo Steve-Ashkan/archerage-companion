@@ -767,6 +767,11 @@ ipcMain.handle('arc-cancel-redemption', async (event, { id }) => {
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
+ipcMain.handle('arc-get-leaderboard', async () => {
+  try { return await callAppApi('arc-get-leaderboard'); }
+  catch(e) { return { ok: false, error: e.message }; }
+});
+
 // ─── IPC: USER MAIL ───────────────────────────────────────────────────────────
 
 ipcMain.handle('arc-get-my-mail', async () => {

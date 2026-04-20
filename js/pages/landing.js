@@ -3,6 +3,7 @@ import { getAuth, getRole, userHasRole } from "../auth.js";
 import { escapeHtml, formatGold } from "../utils.js";
 import { eventCategories } from "../data/events.js";
 import { ROLE_COLORS, ROLE_LABELS } from "../roles.js";
+import { renderTitleBadge, getCachedLifetimePoints } from "../data/arcTitles.js";
 
 // ─── EVENTS ───────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,8 @@ function renderUserCard() {
         </span>
        </div>`) : '';
 
+  const titleBadge = user ? renderTitleBadge(getCachedLifetimePoints()) : '';
+
   return `
     <div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       ${avatar}
@@ -133,6 +136,7 @@ function renderUserCard() {
             background:${color}22;color:${color};border:1px solid ${color}44;letter-spacing:0.05em;">
             ${escapeHtml(label)}
           </span>
+          ${titleBadge}
         </div>
         <div style="font-size:0.85em;color:#8d99ab;margin-top:2px;">ArcheRage Companion</div>
         ${ignLine}

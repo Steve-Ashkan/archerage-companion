@@ -50,6 +50,7 @@ try {
 
     // ── ARC Points ────────────────────────────────────────────────────────
     arcGetMyPoints:       ()      => ipcRenderer.invoke('arc-get-my-points'),
+    arcGetLeaderboard:    ()      => ipcRenderer.invoke('arc-get-leaderboard'),
     arcGetPointHistory:   ()      => ipcRenderer.invoke('arc-get-point-history'),
     arcSubmitRedemption:  (opts)  => ipcRenderer.invoke('arc-submit-redemption', opts),
     arcGetAllRedemptions: ()      => ipcRenderer.invoke('arc-get-all-redemptions'),

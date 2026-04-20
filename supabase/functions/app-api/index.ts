@@ -403,9 +403,18 @@ Deno.serve(async (req) => {
     // ── ARC Points ────────────────────────────────────────────────────────────
 
     if (action === 'arc-get-my-points') {
-      const { data, error } = await db.rpc('get_my_points', { p_discord_id: discord_id });
+      const [balRes, lifeRes] = await Promise.all([
+        db.rpc('get_my_points'),
+        db.rpc('get_my_lifetime_points'),
+      ]);
+      if (balRes.error) return json({ ok: false, error: balRes.error.message });
+      return json({ ok: true, points: balRes.data || 0, lifetimePoints: lifeRes.data || 0 });
+    }
+
+    if (action === 'arc-get-leaderboard') {
+      const { data, error } = await db.rpc('get_leaderboard');
       if (error) return json({ ok: false, error: error.message });
-      return json({ ok: true, points: data || 0 });
+      return json({ ok: true, leaderboard: data || [] });
     }
 
     if (action === 'arc-get-point-history') {

@@ -4,6 +4,7 @@
 
 import { escapeHtml } from '../utils.js';
 import { getAuth, isPro } from '../auth.js';
+import { TITLE_TIERS, getTitleForPoints, renderTitleBadge, getCachedLifetimePoints, cacheLifetimePoints } from '../data/arcTitles.js';
 
 const IGN_KEY = 'userIgn';
 function getIGN() { return localStorage.getItem(IGN_KEY) || ''; }
@@ -13,9 +14,11 @@ function getIGN() { return localStorage.getItem(IGN_KEY) || ''; }
 const PRO_DISCOUNT = 0.20; // 20% off for active pro subscribers
 
 const EARN_ACTIONS = [
-  { action: 'Wiki article or guide approved',      points: 25, icon: '📖' },
-  { action: 'Recipe submitted & verified correct', points: 5,  icon: '📜' },
-  { action: 'Auction House price submission accepted', points: 1, icon: '💰' },
+  { action: 'Wiki article or guide approved',           points: 25,  icon: '📖' },
+  { action: 'Recipe submitted & verified correct',      points: 5,   icon: '📜' },
+  { action: 'Auction House price submission accepted',  points: 1,   icon: '💰' },
+  { action: '7-day daily scan streak',                  points: 25,  icon: '🔥', soon: true },
+  { action: '30-day daily scan streak (bonus)',         points: 100, icon: '💥', soon: true },
 ];
 
 const REWARDS = [
@@ -35,33 +38,6 @@ const REWARDS = [
     baseCost: 2000,
     icon: '🌟',
     category: 'pro',
-    proOnly: false,
-  },
-  {
-    id: 'gold_250',
-    label: '250g In-Game Gold',
-    description: 'Redeemable in-game — fulfilled manually by Ashkan',
-    baseCost: 750,
-    icon: '🪙',
-    category: 'gold',
-    proOnly: false,
-  },
-  {
-    id: 'gold_500',
-    label: '500g In-Game Gold',
-    description: 'Redeemable in-game — fulfilled manually by Ashkan',
-    baseCost: 1250,
-    icon: '💎',
-    category: 'gold',
-    proOnly: false,
-  },
-  {
-    id: 'gold_1000',
-    label: '1,000g In-Game Gold',
-    description: 'Redeemable in-game — fulfilled manually by Ashkan',
-    baseCost: 2000,
-    icon: '👑',
-    category: 'gold',
     proOnly: false,
   },
   {
@@ -90,19 +66,34 @@ function effectiveCost(baseCost, userIsPro) {
 
 // ─── STATE (async — page re-renders after fetch) ───────────────────────────────
 
-let _points  = 0;
-let _history = [];
+let _points         = 0;
+let _lifetimePoints = getCachedLifetimePoints();
+let _history        = [];
+let _leaderboard    = [];
+let _lbLoaded       = false;
 
 async function loadPoints() {
   if (!window.electronAPI?.arcGetMyPoints) return;
   const r = await window.electronAPI.arcGetMyPoints();
-  if (r?.ok) { _points = r.points; window.renderCurrentPage?.(); }
+  if (r?.ok) {
+    _points         = r.points;
+    _lifetimePoints = r.lifetimePoints || 0;
+    cacheLifetimePoints(_lifetimePoints);
+    window.renderCurrentPage?.();
+  }
 }
 
 async function loadHistory() {
   if (!window.electronAPI?.arcGetPointHistory) return;
   const r = await window.electronAPI.arcGetPointHistory();
   if (r?.ok) { _history = r.history || []; window.renderCurrentPage?.(); }
+}
+
+async function loadLeaderboard() {
+  if (_lbLoaded || !window.electronAPI?.arcGetLeaderboard) return;
+  _lbLoaded = true;
+  const r = await window.electronAPI.arcGetLeaderboard();
+  if (r?.ok) { _leaderboard = r.leaderboard || []; window.renderCurrentPage?.(); }
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
@@ -116,25 +107,68 @@ export function renderPage() {
   // Kick off async fetches — will re-render when done
   loadPoints();
   loadHistory();
+  loadLeaderboard();
+
+  const lifetimePoints = _lifetimePoints;
+  const currentTitle   = getTitleForPoints(lifetimePoints);
+  const nextTier       = TITLE_TIERS.slice().reverse().find(t => lifetimePoints < t.min) || null;
+  const prevMin        = currentTitle ? currentTitle.min : 0;
+  const nextMin        = nextTier ? nextTier.min : null;
+  const progressPct    = nextMin
+    ? Math.min(100, ((lifetimePoints - prevMin) / (nextMin - prevMin)) * 100)
+    : 100;
 
   return `
     <!-- Header + Balance -->
     <div class="card" style="margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-bottom:${currentTitle || nextTier ? '16px' : '0'};">
         <div>
           <h2 style="margin:0 0 4px;">ARC Points</h2>
           <p style="margin:0;color:#566174;font-size:13px;">
-            Earn points by contributing to the app. Redeem for Pro time, in-game gold, or gifts.
+            Earn points by contributing to the app. Redeem for Pro time or gift it to other players.
           </p>
         </div>
         <div style="text-align:right;">
           <div style="font-size:2.2em;font-weight:800;color:#ffd166;line-height:1;">
             ${points.toLocaleString()}
           </div>
-          <div style="font-size:12px;color:#566174;margin-top:2px;">ARC Points</div>
+          <div style="font-size:12px;color:#566174;margin-top:2px;">ARC Points balance</div>
           ${userPro ? `<div style="font-size:11px;color:#a78bfa;margin-top:4px;">⭐ Pro — 20% discount applied</div>` : ''}
         </div>
       </div>
+
+      <!-- Title progress -->
+      ${currentTitle || nextTier ? `
+        <div style="border-top:1px solid #1e2d3d;padding-top:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              ${currentTitle
+                ? `<span style="font-size:0.8em;color:#8d99ab;">Your title:</span>
+                   ${renderTitleBadge(lifetimePoints)}`
+                : `<span style="font-size:0.8em;color:#566174;">Earn <strong style="color:#8d99ab;">50 pts</strong> to unlock your first title</span>`
+              }
+            </div>
+            <div style="font-size:11px;color:#566174;">
+              ${lifetimePoints.toLocaleString()} lifetime pts
+            </div>
+          </div>
+          ${nextTier ? `
+            <div>
+              <div style="height:6px;background:#0d1b2a;border-radius:3px;overflow:hidden;margin-bottom:5px;">
+                <div style="height:100%;width:${progressPct.toFixed(1)}%;background:${nextTier.color};border-radius:3px;transition:width 0.4s ease;"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:#394252;">
+                <span>${currentTitle ? currentTitle.title : 'None'}</span>
+                <span style="color:${nextTier.color};">${nextTier.title} · ${nextTier.min.toLocaleString()} pts</span>
+              </div>
+            </div>
+          ` : `
+            <div style="font-size:12px;color:#fcd34d;text-align:center;padding:4px 0;">
+              ★ Maximum title achieved ★
+            </div>
+          `}
+        </div>
+      ` : ''}
     </div>
 
     <!-- How to Earn -->
@@ -143,10 +177,13 @@ export function renderPage() {
       <div style="display:flex;flex-direction:column;gap:8px;">
         ${EARN_ACTIONS.map(a => `
           <div style="display:flex;justify-content:space-between;align-items:center;
-            padding:10px 14px;background:#0f1923;border:1px solid #1e2d3d;border-radius:8px;">
+            padding:10px 14px;background:#0f1923;border:1px solid ${a.soon ? '#1e2535' : '#1e2d3d'};
+            border-radius:8px;opacity:${a.soon ? '0.65' : '1'};">
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="font-size:1.2em;">${a.icon}</span>
               <span style="color:#cbd5e1;font-size:14px;">${escapeHtml(a.action)}</span>
+              ${a.soon ? `<span style="font-size:10px;color:#566174;padding:1px 7px;border-radius:10px;
+                border:1px solid #2a3040;letter-spacing:0.05em;">coming soon</span>` : ''}
             </div>
             <span style="font-weight:700;color:#ffd166;font-size:14px;">+${a.points} pt${a.points !== 1 ? 's' : ''}</span>
           </div>
@@ -169,8 +206,83 @@ export function renderPage() {
       </div>
 
       ${renderRewardSection('Pro Time', 'pro', points, userPro)}
-      ${renderRewardSection('In-Game Gold', 'gold', points, userPro)}
       ${renderRewardSection('Gifts', 'gift', points, userPro)}
+    </div>
+
+    <!-- Titles -->
+    <div class="card" style="margin-bottom:16px;">
+      <h3 style="margin:0 0 4px;">Contributor Titles</h3>
+      <p style="margin:0 0 16px;font-size:13px;color:#566174;">
+        Titles are earned automatically based on your lifetime points — they never go away when you spend.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${TITLE_TIERS.slice().reverse().map(t => {
+          const earned  = lifetimePoints >= t.min;
+          const current = currentTitle?.title === t.title;
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;
+              padding:10px 14px;background:#0f1923;border:1px solid ${current ? t.color + '66' : earned ? t.color + '33' : '#1e2d3d'};
+              border-radius:8px;opacity:${earned ? '1' : '0.45'};">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;
+                  background:${t.color}22;color:${t.color};border:1px solid ${t.color}44;">
+                  ${t.title}
+                </span>
+                ${current ? `<span style="font-size:11px;color:#566174;">← your title</span>` : ''}
+              </div>
+              <span style="font-size:12px;color:${earned ? t.color : '#394252'};font-weight:600;">
+                ${t.min.toLocaleString()} pts
+              </span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;">Top Contributors</h3>
+        <span style="font-size:12px;color:#566174;">Ranked by lifetime points earned</span>
+      </div>
+      ${!_lbLoaded
+        ? `<div style="color:#394252;font-size:13px;text-align:center;padding:20px 0;">Loading…</div>`
+        : _leaderboard.length === 0
+        ? `<div style="color:#394252;font-size:13px;text-align:center;padding:20px 0;">No contributors yet — be the first!</div>`
+        : `<div style="display:flex;flex-direction:column;gap:6px;">
+            ${_leaderboard.map((entry, i) => {
+              const medal    = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
+              const rankStr  = medal || `<span style="font-size:13px;color:#394252;font-weight:700;">#${i + 1}</span>`;
+              const isMe     = entry.discord_name === getAuth()?.user?.name;
+              const title    = getTitleForPoints(entry.lifetime_points);
+              return `
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;
+                  background:${isMe ? '#1a2535' : '#0f1923'};
+                  border:1px solid ${isMe ? '#2d5a8a' : '#1e2d3d'};border-radius:8px;">
+                  <div style="width:28px;text-align:center;font-size:1.1em;flex-shrink:0;">${rankStr}</div>
+                  ${entry.avatar
+                    ? `<img src="${escapeHtml(entry.avatar)}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;">`
+                    : `<div style="width:32px;height:32px;border-radius:50%;background:#21262f;display:flex;align-items:center;justify-content:center;font-size:13px;color:#566174;flex-shrink:0;">${escapeHtml((entry.discord_name || '?')[0].toUpperCase())}</div>`
+                  }
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                      <span style="font-size:13px;font-weight:700;color:${isMe ? '#93c5fd' : '#eef2f7'};">
+                        ${escapeHtml(entry.discord_name || 'Unknown')}
+                        ${isMe ? '<span style="font-size:11px;color:#566174;font-weight:400;">· you</span>' : ''}
+                      </span>
+                      ${title ? `<span style="font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;
+                        background:${title.color}22;color:${title.color};border:1px solid ${title.color}44;">
+                        ${title.title}</span>` : ''}
+                    </div>
+                  </div>
+                  <span style="font-weight:700;color:#ffd166;font-size:13px;flex-shrink:0;">
+                    ${Number(entry.lifetime_points).toLocaleString()} pts
+                  </span>
+                </div>
+              `;
+            }).join('')}
+          </div>`
+      }
     </div>
 
     <!-- Point History -->
