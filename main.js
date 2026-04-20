@@ -1062,7 +1062,7 @@ app.whenReady().then(() => {
     });
 
     autoUpdater.checkForUpdates();
-    setInterval(() => autoUpdater.checkForUpdates(), 2 * 60 * 60 * 1000);
+    setInterval(() => autoUpdater.checkForUpdates(), 60 * 60 * 1000);
   }
 });
 
