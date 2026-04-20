@@ -107,7 +107,7 @@ export function renderPage() {
       `).join('')}
     </div>
 
-    <div class="card" style="font-size:12px;color:#566174;line-height:1.8;">
+    <div class="card" style="font-size:12px;color:#566174;line-height:1.8;margin-top:16px;margin-bottom:24px;">
       <strong style="color:#8d99ab;">How ranks work:</strong>
       ${PROFICIENCY_RANKS.map((r, i) => {
         const color = RANK_COLORS[i];
@@ -118,6 +118,7 @@ export function renderPage() {
         </span>`;
       }).join('')}
     </div>
+    <div style="height:24px;"></div>
   `;
 }
 

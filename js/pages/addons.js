@@ -29,6 +29,14 @@ const ADDONS = {
       { cmd: '!scanstart', desc: 'Launch the guided scan wizard' },
     ],
   },
+  profscanner: {
+    label:    'Proficiency Scanner',
+    desc:     'Scans your proficiency points and exports them to the app. Import on the Proficiency page.',
+    commands: [
+      { cmd: '!profscan',  desc: 'Scan and export all proficiency points to CSV' },
+      { cmd: '!profhelp',  desc: 'Show available commands' },
+    ],
+  },
 };
 
 function getPath() {
@@ -130,7 +138,7 @@ export function renderPage() {
           <div>
             <div style="font-size:14px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Install / Reinstall All</div>
             <div style="font-size:13px;color:#8d99ab;">
-              Copies both addons to your ArcheRage folder. Safe to run again — overwrites existing files with the latest version.
+              Copies all addons to your ArcheRage folder. Safe to run again — overwrites existing files with the latest version.
             </div>
           </div>
           <button onclick="window.addonsInstallAll()"
@@ -175,7 +183,7 @@ function renderAddonCard(id, addon) {
   return `
     <div class="card" style="margin-bottom:12px;${s?.installed ? 'border-color:#2a5a2a;' : (!_checked ? '' : 'border-color:#5a2a2a;')}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
-        <div>
+        <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
             <span style="font-size:15px;font-weight:700;color:#eef2f7;">${addon.label}</span>
             ${statusBadge}
