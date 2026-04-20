@@ -34,4 +34,5 @@ jobs:
           prerelease: false
           files: |
             dist/*.exe
+            dist/*.blockmap
             dist/latest.yml

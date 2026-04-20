@@ -324,7 +324,7 @@ window.electronAPI?.onUpdateReady?.((version) => {
 });
 
 window.electronAPI?.onUpdateError?.((msg) => {
-  console.error('[updater] Error received in renderer:', msg);
+  console.error('[updater] Error:', msg);
 });
 
 // Manual update check — callable from dev panel or console
