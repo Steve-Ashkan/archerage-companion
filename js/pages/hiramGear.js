@@ -153,6 +153,211 @@ function getTierColor(tier) {
   }
 }
 
+// ─── WHERE AM I ──────────────────────────────────────────────────────────────
+
+const TIER_NAMES = {
+  T1: 'Hiram',
+  T2: 'Radiant Hiram',
+  T3: 'Brilliant Hiram',
+  T4: 'Glorious Hiram',
+  T5: 'Exalted Hiram',
+  T6: 'Sacred Hiram',
+};
+
+const GRADE_COLORS = {
+  Grand:     '#94a3b8',
+  Rare:      '#4ade80',
+  Arcane:    '#60a5fa',
+  Heroic:    '#c084fc',
+  Unique:    '#fb923c',
+  Celestial: '#fbbf24',
+  Divine:    '#f87171',
+  Epic:      '#6b8cba',
+  Legendary: '#fcd34d',
+  Mythic:    '#ef4444',
+  Eternal:   '#67e8f9',
+};
+
+function getTierRows(tierKey) {
+  const tierIdx     = EXP_ROWS.findIndex(r => r.tier === tierKey);
+  const nextTierIdx = EXP_ROWS.findIndex((r, i) => i > tierIdx && r.tier && r.tier !== tierKey);
+  return EXP_ROWS.slice(tierIdx, nextTierIdx === -1 ? undefined : nextTierIdx);
+}
+
+function getActiveGrades(slotRow) {
+  return EXP_GRADES
+    .map((name, i) => ({ name, i, xp: slotRow.values[i] }))
+    .filter(g => g.xp !== null);
+}
+
+function renderWhereAmI() {
+  const tiers = Object.entries(TIER_NAMES)
+    .map(([key, name]) => `<option value="${key}">${name}</option>`).join('');
+
+  const t1Rows   = getTierRows('T1');
+  const t1Slots  = [...new Set(t1Rows.map(r => r.type))];
+  const t1First  = t1Rows[0];
+  const t1Grades = getActiveGrades(t1First);
+
+  const slotOpts  = t1Slots.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  const gradeOpts = t1Grades.map(g => `<option value="${g.name}">${g.name}</option>`).join('');
+
+  return `
+    <div class="card" id="where-am-i">
+      <h3 style="margin-top:0;">Where Am I?</h3>
+      <p class="notice" style="margin:0 0 16px 0;">
+        Select your tier, slot, and current grade, then enter the first XP number shown on your item tooltip (e.g. <strong style="color:#eef2f7;">2908</strong> from XP 2908/12832).
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div>
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Tier</label>
+          <select id="wai-tier" style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
+            ${tiers}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Gear Slot</label>
+          <select id="wai-slot" style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
+            ${slotOpts}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current Grade</label>
+          <select id="wai-grade" style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
+            ${gradeOpts}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current XP (first number on tooltip)</label>
+          <input id="wai-xp" type="number" min="0" placeholder="e.g. 2908"
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;box-sizing:border-box;">
+        </div>
+      </div>
+      <div id="wai-result"></div>
+    </div>
+  `;
+}
+
+function _updateWaiSlots(tierKey) {
+  const rows    = getTierRows(tierKey);
+  const slots   = [...new Set(rows.map(r => r.type))];
+  const slotEl  = document.getElementById('wai-slot');
+  if (!slotEl) return;
+  slotEl.innerHTML = slots.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  _updateWaiGrades(tierKey, slots[0]);
+}
+
+function _updateWaiGrades(tierKey, slotType) {
+  const rows    = getTierRows(tierKey);
+  const slotRow = rows.find(r => r.type === slotType);
+  if (!slotRow) return;
+  const grades   = getActiveGrades(slotRow);
+  const gradeEl  = document.getElementById('wai-grade');
+  if (!gradeEl) return;
+  gradeEl.innerHTML = grades.map(g => `<option value="${g.name}">${g.name}</option>`).join('');
+}
+
+function _renderWaiResult() {
+  const tierKey   = document.getElementById('wai-tier')?.value;
+  const slotType  = document.getElementById('wai-slot')?.value;
+  const gradeName = document.getElementById('wai-grade')?.value;
+  const rawXP     = document.getElementById('wai-xp')?.value;
+  const resultEl  = document.getElementById('wai-result');
+  if (!resultEl) return;
+
+  if (!tierKey || !slotType || !gradeName || rawXP === '' || rawXP === null) {
+    resultEl.innerHTML = ''; return;
+  }
+  const currentXP = parseInt(rawXP);
+  if (isNaN(currentXP) || currentXP < 0) { resultEl.innerHTML = ''; return; }
+
+  const rows    = getTierRows(tierKey);
+  const slotRow = rows.find(r => r.type === slotType);
+  if (!slotRow) { resultEl.innerHTML = ''; return; }
+
+  const grades       = getActiveGrades(slotRow);
+  const gradeIdx     = grades.findIndex(g => g.name === gradeName);
+  if (gradeIdx === -1) { resultEl.innerHTML = ''; return; }
+
+  const grade         = grades[gradeIdx];
+  const safeXP        = Math.min(currentXP, grade.xp);
+  const remainInGrade = grade.xp - safeXP;
+  const progressPct   = Math.min(100, Math.round((safeXP / grade.xp) * 100));
+  const gradeColor    = GRADE_COLORS[gradeName] || '#eef2f7';
+  const tierColor     = getTierColor(tierKey);
+  const tierName      = TIER_NAMES[tierKey];
+  const awakenGrade   = grades[grades.length - 1];
+  const isAtMax       = gradeIdx === grades.length - 1;
+
+  const remainingGrades = grades.slice(gradeIdx + 1);
+  const xpToAwakening   = remainInGrade + remainingGrades.reduce((s, g) => s + g.xp, 0);
+  const nextGrade       = grades[gradeIdx + 1];
+
+  const gradeBreakdown = isAtMax ? '' : `
+    <div style="margin-top:12px;">
+      <div style="font-size:0.8em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">XP Remaining to Awakening (${awakenGrade.name})</div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e2a38;font-size:0.88em;">
+        <span style="color:${gradeColor};">${gradeName} <span style="color:#8d99ab;">(current)</span></span>
+        <span style="color:#eef2f7;">${remainInGrade.toLocaleString()} XP</span>
+      </div>
+      ${remainingGrades.map(g => `
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e2a38;font-size:0.88em;">
+          <span style="color:${GRADE_COLORS[g.name] || '#eef2f7'};">${g.name}</span>
+          <span style="color:#eef2f7;">${g.xp.toLocaleString()} XP</span>
+        </div>
+      `).join('')}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:700;border-top:2px solid #394252;margin-top:4px;">
+        <span style="color:#8d99ab;">Total to awakening</span>
+        <span style="color:#fcd34d;">${xpToAwakening.toLocaleString()} XP</span>
+      </div>
+    </div>
+  `;
+
+  const awakenBadge = isAtMax
+    ? `<div style="margin-top:12px;padding:10px 14px;background:#0a2a1a;border:1px solid #16a34a;border-radius:8px;color:#4ade80;font-weight:600;font-size:0.9em;">
+        Ready to awaken! This piece is at its maximum grade for this tier.
+       </div>`
+    : gradeBreakdown;
+
+  resultEl.innerHTML = `
+    <div style="background:#1a2535;border:1px solid #394252;border-radius:10px;padding:16px;">
+      <div style="margin-bottom:14px;">
+        <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Your Piece</div>
+        <div style="font-size:1.05em;font-weight:700;">
+          <span style="color:${gradeColor};">${gradeName}</span>
+          <span style="color:${tierColor};margin-left:6px;">${tierName}</span>
+          <span style="color:#8d99ab;font-weight:400;margin-left:6px;">${escapeHtml(slotType)}</span>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:0.85em;margin-bottom:6px;">
+          <span style="color:#8d99ab;">Grade Progress</span>
+          <span style="color:#eef2f7;">${safeXP.toLocaleString()} / ${grade.xp.toLocaleString()} XP
+            <span style="color:${gradeColor};margin-left:4px;">(${progressPct}%)</span>
+          </span>
+        </div>
+        <div style="height:10px;background:#0d1b2a;border-radius:5px;overflow:hidden;">
+          <div style="height:100%;width:${progressPct}%;background:${gradeColor};border-radius:5px;"></div>
+        </div>
+        ${!isAtMax ? `<div style="font-size:0.82em;color:#8d99ab;margin-top:5px;">${remainInGrade.toLocaleString()} XP to reach <span style="color:${GRADE_COLORS[nextGrade.name] || '#eef2f7'};">${nextGrade.name}</span></div>` : ''}
+      </div>
+      ${awakenBadge}
+    </div>
+  `;
+}
+
+export function initHiramPage() {
+  const tierEl  = document.getElementById('wai-tier');
+  const slotEl  = document.getElementById('wai-slot');
+  const gradeEl = document.getElementById('wai-grade');
+  const xpEl    = document.getElementById('wai-xp');
+  if (!tierEl) return;
+  tierEl.addEventListener('change',  () => { _updateWaiSlots(tierEl.value); _renderWaiResult(); });
+  slotEl?.addEventListener('change', () => { _updateWaiGrades(tierEl.value, slotEl.value); _renderWaiResult(); });
+  gradeEl?.addEventListener('change', _renderWaiResult);
+  xpEl?.addEventListener('input',    _renderWaiResult);
+}
+
 // ─── RENDER ──────────────────────────────────────────────────────────────────
 
 function renderExpTable() {
@@ -264,11 +469,13 @@ export function renderPage() {
         Tier color indicates progression stage.
       </p>
       <div class="section-nav" style="margin-top:12px;">
+        <a href="#where-am-i" class="section-link">Where Am I?</a>
         <a href="#exp-requirements" class="section-link">EXP Requirements</a>
         <a href="#specialisation" class="section-link">Specialisation</a>
       </div>
     </div>
 
+    ${renderWhereAmI()}
     ${renderExpTable()}
     ${renderSpecTable()}
   `;

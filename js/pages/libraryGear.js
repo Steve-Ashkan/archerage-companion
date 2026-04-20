@@ -113,6 +113,20 @@ const TIER_INFO = [
   { rowStart: 14, rowEnd: 20, label: "T3 Immortal Warden",     color: "#fcd34d", awakeningGradeIdx: null, nextTier: null                  }
 ];
 
+const GRADE_COLORS = {
+  Grand:     '#94a3b8',
+  Rare:      '#4ade80',
+  Arcane:    '#60a5fa',
+  Heroic:    '#c084fc',
+  Unique:    '#fb923c',
+  Celestial: '#fbbf24',
+  Divine:    '#f87171',
+  Epic:      '#6b8cba',
+  Legendary: '#fcd34d',
+  Mythic:    '#ef4444',
+  Eternal:   '#67e8f9',
+};
+
 function getTierInfo(rowIndex) {
   return TIER_INFO.find(t => rowIndex >= t.rowStart && rowIndex <= t.rowEnd) || TIER_INFO[0];
 }
@@ -294,12 +308,14 @@ function renderWhereAmI() {
   let gradeIdx = wai.gradeIndex;
   if (!avail.find(g => g.index === gradeIdx)) gradeIdx = avail[0]?.index ?? 0;
 
-  const gradeDef   = avail.find(g => g.index === gradeIdx);
-  const gradeCost  = gradeDef?.cost ?? 0;
-  const currentExp = Math.min(Math.max(0, wai.currentExp), gradeCost);
+  const gradeDef    = avail.find(g => g.index === gradeIdx);
+  const gradeCost   = gradeDef?.cost ?? 0;
+  const currentExp  = Math.min(Math.max(0, wai.currentExp), gradeCost);
   const progressPct = gradeCost > 0 ? Math.min(100, (currentExp / gradeCost) * 100) : 0;
 
-  const tierInfo = getTierInfo(wai.rowIndex);
+  const tierInfo   = getTierInfo(wai.rowIndex);
+  const gradeColor = GRADE_COLORS[gradeDef?.name] || '#eef2f7';
+  const rowType    = EXP_ROWS[wai.rowIndex]?.type ?? '';
 
   const rowOptions = rowLabels.map(r =>
     `<option value="${r.index}" ${r.index === wai.rowIndex ? "selected" : ""}>${escapeHtml(r.label)}</option>`
@@ -309,135 +325,138 @@ function renderWhereAmI() {
     `<option value="${g.index}" ${g.index === gradeIdx ? "selected" : ""}>${escapeHtml(g.name)}</option>`
   ).join("");
 
-  // ── Calculations ──
-  const nextGrade       = avail.find(g => g.index > gradeIdx);
-  const lastGrade       = avail[avail.length - 1];
-  const atAwakeningPt   = tierInfo.awakeningGradeIdx !== null && gradeIdx >= tierInfo.awakeningGradeIdx;
+  const nextGrade     = avail.find(g => g.index > gradeIdx);
+  const isAtMax       = !nextGrade;
+  const atAwakeningPt = tierInfo.awakeningGradeIdx !== null && gradeIdx >= tierInfo.awakeningGradeIdx;
+  const remainInGrade = gradeCost - currentExp;
 
-  const expToNext       = nextGrade
-    ? expNeededToReach(wai.rowIndex, gradeIdx, currentExp, nextGrade.index)
-    : 0;
-
-  const expToAwaken     = tierInfo.awakeningGradeIdx !== null && !atAwakeningPt
-    ? expNeededToReach(wai.rowIndex, gradeIdx, currentExp, tierInfo.awakeningGradeIdx)
-    : 0;
-
-  const expToFillAll    = expNeededToFill(wai.rowIndex, gradeIdx, currentExp);
-
-  // Enhancer counts for each milestone
-  const toEnhancers = exp => ({
-    sanctuary:    Math.ceil(exp / 20000),
-    abyssalRank4: Math.ceil(exp / 7000),
-    abyssalRank3: Math.ceil(exp / 2000)
-  });
-
-  const fmtEnh = exp => {
-    const e = toEnhancers(exp);
-    return `~${e.sanctuary.toLocaleString()} Sanctuary &nbsp;|&nbsp; ~${e.abyssalRank4.toLocaleString()} Rank 4 &nbsp;|&nbsp; ~${e.abyssalRank3.toLocaleString()} Rank 3`;
-  };
-
-  // Calculator integration
   const calcExp      = getTotalEnhancerExp();
   const calcProgress = calcExp > 0
     ? calcEnhancerProgress(wai.rowIndex, gradeIdx, currentExp, calcExp)
     : null;
 
+  // ── Grade breakdown ──
+  let breakdownHtml = '';
+  if (!isAtMax) {
+    const remainingGrades = avail.filter(g => g.index > gradeIdx);
+    const xpToMax = expNeededToFill(wai.rowIndex, gradeIdx, currentExp);
+
+    const breakdownRows = [
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e2a38;font-size:0.88em;">
+        <span style="color:${gradeColor};">${escapeHtml(gradeDef?.name ?? '')} <span style="color:#8d99ab;">(current)</span></span>
+        <span style="color:#eef2f7;">${remainInGrade.toLocaleString()} XP</span>
+      </div>`,
+      ...remainingGrades.map(g => {
+        const gc = GRADE_COLORS[g.name] || '#eef2f7';
+        const isAwaken = tierInfo.awakeningGradeIdx !== null && g.index === tierInfo.awakeningGradeIdx;
+        return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e2a38;font-size:0.88em;">
+          <span style="color:${gc};">${escapeHtml(g.name)}${isAwaken ? ' <span style="color:#86efac;font-size:0.82em;">[awaken]</span>' : ''}</span>
+          <span style="color:#eef2f7;">${g.cost.toLocaleString()} XP</span>
+        </div>`;
+      }),
+      `<div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:700;border-top:2px solid #394252;margin-top:4px;">
+        <span style="color:#8d99ab;">Total to max</span>
+        <span style="color:#fcd34d;">${xpToMax.toLocaleString()} XP</span>
+      </div>`,
+      `<div style="font-size:0.8em;color:#8d99ab;margin-top:2px;">
+        ~${Math.ceil(xpToMax / 20000).toLocaleString()} Sanctuary &nbsp;|&nbsp;
+        ~${Math.ceil(xpToMax / 7000).toLocaleString()} Rank 4 &nbsp;|&nbsp;
+        ~${Math.ceil(xpToMax / 2000).toLocaleString()} Rank 3
+      </div>`
+    ].join('');
+
+    breakdownHtml = `
+      <div style="margin-top:12px;">
+        <div style="font-size:0.8em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">XP Remaining</div>
+        ${breakdownRows}
+      </div>`;
+
+    if (!atAwakeningPt && tierInfo.awakeningGradeIdx !== null && tierInfo.nextTier) {
+      const xpToAwaken = expNeededToReach(wai.rowIndex, gradeIdx, currentExp, tierInfo.awakeningGradeIdx);
+      breakdownHtml += `
+        <div style="margin-top:8px;padding:8px 12px;background:#0a1e2e;border:1px solid #1e4d6b;border-radius:6px;font-size:0.85em;display:flex;justify-content:space-between;align-items:center;">
+          <span><span style="color:#86efac;">Awaken at ${escapeHtml(EXP_GRADES[tierInfo.awakeningGradeIdx])}</span> <span style="color:#8d99ab;">→ ${escapeHtml(tierInfo.nextTier)}</span></span>
+          <span style="color:#eef2f7;font-weight:600;">${xpToAwaken.toLocaleString()} XP</span>
+        </div>`;
+    }
+  }
+
+  const awakenBadge = isAtMax
+    ? `<div style="margin-top:12px;padding:10px 14px;background:#0a2a1a;border:1px solid #16a34a;border-radius:8px;color:#4ade80;font-weight:600;font-size:0.9em;">
+        This piece is at its maximum grade for this tier!
+       </div>`
+    : atAwakeningPt && tierInfo.nextTier
+    ? `<div style="margin-top:12px;padding:10px 14px;background:#0a2a1a;border:1px solid #16a34a;border-radius:8px;color:#4ade80;font-weight:600;font-size:0.9em;">
+        Ready to Awaken! Use your scroll to become <strong>${escapeHtml(tierInfo.nextTier)}</strong>.
+       </div>`
+    : '';
+
   return `
     <div class="card" id="where-am-i">
       <h3 style="margin-top:0;">Where Am I?</h3>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px;">
-        <div>
-          <label style="display:block;margin-bottom:4px;font-size:0.85em;opacity:0.7;">Gear Type</label>
-          <select onchange="window.updateLibraryGearWAI('rowIndex', parseInt(this.value))" style="width:100%;">
+      <p class="notice" style="margin:0 0 16px 0;">
+        Select your gear type and current grade, then enter your current EXP in that grade (first number on your tooltip).
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div style="grid-column:1/-1;">
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Gear Type</label>
+          <select onchange="window.updateLibraryGearWAI('rowIndex', parseInt(this.value))"
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
             ${rowOptions}
           </select>
         </div>
         <div>
-          <label style="display:block;margin-bottom:4px;font-size:0.85em;opacity:0.7;">Current Grade</label>
-          <select onchange="window.updateLibraryGearWAI('gradeIndex', parseInt(this.value))" style="width:100%;">
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current Grade</label>
+          <select onchange="window.updateLibraryGearWAI('gradeIndex', parseInt(this.value))"
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
             ${gradeOptions}
           </select>
         </div>
         <div>
-          <label style="display:block;margin-bottom:4px;font-size:0.85em;opacity:0.7;">EXP in Current Grade</label>
-          <input
-            type="number" min="0" max="${gradeCost}" value="${currentExp}"
-            placeholder="0" style="width:100%;"
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current XP (first number on tooltip)</label>
+          <input type="number" min="0" max="${gradeCost}" value="${currentExp}" placeholder="e.g. 1500000"
             onchange="window.updateLibraryGearWAI('currentExp', parseFloat(this.value) || 0)"
-          >
-          <div style="font-size:0.8em;opacity:0.5;margin-top:3px;">Max: ${gradeCost.toLocaleString()} EXP</div>
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;box-sizing:border-box;">
+          <div style="font-size:0.78em;color:#8d99ab;margin-top:3px;">Max: ${gradeCost.toLocaleString()} EXP</div>
         </div>
       </div>
 
-      <!-- Progress bar -->
-      <div style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;font-size:0.85em;margin-bottom:4px;">
-          <span style="color:${escapeHtml(tierInfo.color)};">${escapeHtml(tierInfo.label)}</span>
-          <span>${gradeDef?.name ?? ""} — ${currentExp.toLocaleString()} / ${gradeCost.toLocaleString()} EXP (${progressPct.toFixed(1)}%)</span>
+      <div style="background:#1a2535;border:1px solid #394252;border-radius:10px;padding:16px;">
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Your Piece</div>
+          <div style="font-size:1.05em;font-weight:700;">
+            <span style="color:${gradeColor};">${escapeHtml(gradeDef?.name ?? '')}</span>
+            <span style="color:${escapeHtml(tierInfo.color)};margin-left:6px;">${escapeHtml(tierInfo.label)}</span>
+            <span style="color:#8d99ab;font-weight:400;margin-left:6px;">${escapeHtml(rowType)}</span>
+          </div>
         </div>
-        <div style="background:rgba(255,255,255,0.1);border-radius:4px;height:10px;overflow:hidden;">
-          <div style="width:${progressPct.toFixed(1)}%;background:${escapeHtml(tierInfo.color)};height:100%;border-radius:4px;transition:width 0.3s;"></div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:0.85em;margin-bottom:6px;">
+            <span style="color:#8d99ab;">Grade Progress</span>
+            <span style="color:#eef2f7;">${currentExp.toLocaleString()} / ${gradeCost.toLocaleString()} EXP
+              <span style="color:${gradeColor};margin-left:4px;">(${progressPct.toFixed(1)}%)</span>
+            </span>
+          </div>
+          <div style="height:10px;background:#0d1b2a;border-radius:5px;overflow:hidden;">
+            <div style="height:100%;width:${progressPct.toFixed(1)}%;background:${gradeColor};border-radius:5px;"></div>
+          </div>
+          ${nextGrade ? `<div style="font-size:0.82em;color:#8d99ab;margin-top:5px;">${remainInGrade.toLocaleString()} XP to reach <span style="color:${GRADE_COLORS[nextGrade.name] || '#eef2f7'};">${escapeHtml(nextGrade.name)}</span></div>` : ''}
         </div>
-      </div>
-
-      <!-- Result cards -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;">
-
-        ${nextGrade && expToNext > 0 ? `
-          <div class="summary-box">
-            <div style="font-weight:bold;margin-bottom:8px;">Next Grade: ${escapeHtml(nextGrade.name)}</div>
-            <div style="font-size:1.05em;margin-bottom:6px;"><strong>${expToNext.toLocaleString()}</strong> EXP needed</div>
-            <div style="font-size:0.82em;opacity:0.7;">${fmtEnh(expToNext)}</div>
-          </div>
-        ` : !nextGrade ? `
-          <div class="summary-box" style="border-color:var(--accent,#2dd4bf);">
-            <div style="font-weight:bold;margin-bottom:6px;">Max grade for this tier!</div>
-          </div>
-        ` : ""}
-
-        ${tierInfo.awakeningGradeIdx !== null && !atAwakeningPt ? `
-          <div class="summary-box">
-            <div style="font-weight:bold;margin-bottom:8px;">Awakening: ${escapeHtml(EXP_GRADES[tierInfo.awakeningGradeIdx])}</div>
-            <div style="font-size:1.05em;margin-bottom:6px;"><strong>${expToAwaken.toLocaleString()}</strong> EXP needed</div>
-            <div style="font-size:0.82em;opacity:0.7;">${fmtEnh(expToAwaken)}</div>
-            <div style="font-size:0.82em;opacity:0.6;margin-top:6px;">Becomes: ${escapeHtml(tierInfo.nextTier ?? "")}</div>
-          </div>
-        ` : tierInfo.awakeningGradeIdx !== null && atAwakeningPt && tierInfo.nextTier ? `
-          <div class="summary-box" style="border-color:var(--accent,#2dd4bf);">
-            <div style="font-weight:bold;margin-bottom:6px;">Ready to Awaken!</div>
-            <div style="font-size:0.9em;">Use your awakening scroll to become<br><strong>${escapeHtml(tierInfo.nextTier)}</strong>.</div>
-          </div>
-        ` : ""}
-
-        <div class="summary-box">
-          <div style="font-weight:bold;margin-bottom:8px;">Max This Tier: Eternal</div>
-          ${expToFillAll > 0 ? `
-            <div style="font-size:1.05em;margin-bottom:6px;"><strong>${expToFillAll.toLocaleString()}</strong> EXP needed</div>
-            <div style="font-size:0.82em;opacity:0.7;">${fmtEnh(expToFillAll)}</div>
-          ` : `
-            <div style="color:var(--accent,#2dd4bf);font-size:0.9em;">Tier maxed out!</div>
-          `}
-        </div>
-
+        ${breakdownHtml}
+        ${awakenBadge}
         ${calcProgress ? `
-          <div class="summary-box">
-            <div style="font-weight:bold;margin-bottom:8px;">Your Enhancers</div>
-            <div style="margin-bottom:6px;">+<strong>${calcExp.toLocaleString()}</strong> EXP total</div>
+          <div style="margin-top:12px;padding:10px 14px;background:#131920;border:1px solid #394252;border-radius:8px;">
+            <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Your Enhancers (+${calcExp.toLocaleString()} EXP)</div>
             ${calcProgress.maxed ? `
-              <div style="color:var(--accent,#2dd4bf);font-size:0.9em;">Enough to max this tier!</div>
+              <div style="color:#4ade80;font-size:0.9em;">Enough to max this tier!</div>
             ` : calcProgress.gradeIndex > gradeIdx ? `
-              <div style="font-size:0.9em;">Lands at: <strong>${escapeHtml(EXP_GRADES[calcProgress.gradeIndex])}</strong></div>
-              <div style="font-size:0.85em;opacity:0.8;margin-top:3px;">${calcProgress.expInGrade.toLocaleString()} EXP into that grade</div>
+              <div style="font-size:0.9em;">Lands at: <strong style="color:${GRADE_COLORS[EXP_GRADES[calcProgress.gradeIndex]] || '#eef2f7'};">${escapeHtml(EXP_GRADES[calcProgress.gradeIndex])}</strong></div>
+              <div style="font-size:0.85em;color:#8d99ab;margin-top:3px;">${calcProgress.expInGrade.toLocaleString()} EXP into that grade</div>
             ` : `
-              <div style="font-size:0.9em;">Not enough to advance</div>
-              <div style="font-size:0.85em;opacity:0.8;margin-top:3px;">
-                Still need ${Math.max(0, gradeCost - currentExp - calcExp).toLocaleString()} more EXP
-              </div>
+              <div style="font-size:0.9em;color:#8d99ab;">Not enough to advance grades yet</div>
             `}
           </div>
-        ` : ""}
-
+        ` : ''}
       </div>
     </div>
   `;

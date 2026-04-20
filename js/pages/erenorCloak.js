@@ -34,6 +34,21 @@ const GRADE_NAMES = [
   "Celestial", "Divine", "Epic", "Legendary", "Mythic", "Eternal"
 ];
 
+const GRADE_COLORS = {
+  Basic:     '#6b7280',
+  Grand:     '#94a3b8',
+  Rare:      '#4ade80',
+  Arcane:    '#60a5fa',
+  Heroic:    '#c084fc',
+  Unique:    '#fb923c',
+  Celestial: '#fbbf24',
+  Divine:    '#f87171',
+  Epic:      '#6b8cba',
+  Legendary: '#fcd34d',
+  Mythic:    '#ef4444',
+  Eternal:   '#67e8f9',
+};
+
 const CLOAK_TYPE_DEFS = [
   { key: "epheriumCloak",        label: "Epherium Cloak",        rowIndex: 0, awakeningIdx: 7,  awakeningGrade: "Divine",    nextCloak: "Delphinad Cloak"        },
   { key: "delphinadCloak",       label: "Delphinad Cloak",       rowIndex: 1, awakeningIdx: 8,  awakeningGrade: "Epic",      nextCloak: "Ayanad Cloak"           },
@@ -332,13 +347,12 @@ function renderWhereAmI() {
   const state  = getPageState();
   const wai    = state.whereAmI;
 
-  const cloakDef = CLOAK_TYPE_DEFS.find(c => c.key === wai.cloakType) || CLOAK_TYPE_DEFS[3];
-  const row       = EXP_REQUIREMENTS.rows[cloakDef.rowIndex];
-  const rowValues = row.values;
+  const cloakDef    = CLOAK_TYPE_DEFS.find(c => c.key === wai.cloakType) || CLOAK_TYPE_DEFS[3];
+  const row         = EXP_REQUIREMENTS.rows[cloakDef.rowIndex];
+  const rowValues   = row.values;
 
   const availableGrades = getAvailableGrades(cloakDef);
 
-  // Ensure gradeIndex is valid for this cloak type
   let gradeIdx = wai.gradeIndex;
   if (!availableGrades.find(g => g.index === gradeIdx)) {
     gradeIdx = availableGrades[0]?.index ?? 0;
@@ -348,6 +362,7 @@ function renderWhereAmI() {
   const gradeCost        = parseFloat(currentGradeData?.costStr) || 0;
   const currentExp       = Math.min(Math.max(0, wai.currentExp), gradeCost);
   const progressPct      = gradeCost > 0 ? Math.min(100, (currentExp / gradeCost) * 100) : 0;
+  const gradeColor       = GRADE_COLORS[currentGradeData?.name] || '#eef2f7';
 
   const cloakOptions = CLOAK_TYPE_DEFS.map(c =>
     `<option value="${escapeHtml(c.key)}" ${c.key === wai.cloakType ? "selected" : ""}>${escapeHtml(c.label)}</option>`
@@ -357,130 +372,138 @@ function renderWhereAmI() {
     `<option value="${g.index}" ${g.index === gradeIdx ? "selected" : ""}>${escapeHtml(g.name)}</option>`
   ).join("");
 
-  // ── Calculations ──
-  const nextGradeData   = availableGrades.find(g => g.index > gradeIdx);
-  const lastGrade       = availableGrades[availableGrades.length - 1];
-  const atAwakeningPt   = gradeIdx >= cloakDef.awakeningIdx;
+  const nextGradeData = availableGrades.find(g => g.index > gradeIdx);
+  const atAwakeningPt = gradeIdx >= cloakDef.awakeningIdx;
+  const isAtMax       = !nextGradeData;
+  const remainInGrade = gradeCost - currentExp;
 
-  const expToNext       = nextGradeData
-    ? expNeededToReach(rowValues, gradeIdx, currentExp, nextGradeData.index)
-    : 0;
-
-  const expToAwaken     = !atAwakeningPt
-    ? expNeededToReach(rowValues, gradeIdx, currentExp, cloakDef.awakeningIdx)
-    : 0;
-
-  const expToFillAll    = expNeededToFill(rowValues, availableGrades, gradeIdx, currentExp);
-
-  // Calculator integration
-  const calcExp         = getTotalExp();
-  const calcProgress    = calcExp > 0
+  const calcExp      = getTotalExp();
+  const calcProgress = calcExp > 0
     ? calcExpProgress(rowValues, availableGrades, gradeIdx, currentExp, calcExp)
     : null;
 
-  const fmt          = n  => Math.ceil(n).toLocaleString();
-  const fmtCrystals  = n  => (n / EXP_VALUES.auroranSynthesisCrystal).toFixed(1);
-  const fmtStones    = n  => (n / EXP_VALUES.auroranSynthesisStoneAll).toFixed(1);
+  const fmt         = n => Math.ceil(n).toLocaleString();
+  const fmtCrystals = n => (n / EXP_VALUES.auroranSynthesisCrystal).toFixed(1);
+  const fmtStones   = n => (n / EXP_VALUES.auroranSynthesisStoneAll).toFixed(1);
+
+  // ── Grade breakdown ──
+  let breakdownHtml = '';
+  if (!isAtMax) {
+    const remainingGrades = availableGrades.filter(g => g.index > gradeIdx);
+    const xpToMax = expNeededToFill(rowValues, availableGrades, gradeIdx, currentExp);
+
+    const breakdownRows = [
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e2a38;font-size:0.88em;">
+        <span style="color:${gradeColor};">${escapeHtml(currentGradeData?.name ?? '')} <span style="color:#8d99ab;">(current)</span></span>
+        <span style="color:#eef2f7;">${fmt(remainInGrade)} XP</span>
+      </div>`,
+      ...remainingGrades.map(g => {
+        const gc   = GRADE_COLORS[g.name] || '#eef2f7';
+        const cost = parseFloat(g.costStr) || 0;
+        const isAwaken = g.index === cloakDef.awakeningIdx;
+        return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e2a38;font-size:0.88em;">
+          <span style="color:${gc};">${escapeHtml(g.name)}${isAwaken ? ' <span style="color:#86efac;font-size:0.82em;">[awaken]</span>' : ''}</span>
+          <span style="color:#eef2f7;">${fmt(cost)} XP</span>
+        </div>`;
+      }),
+      `<div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:700;border-top:2px solid #394252;margin-top:4px;">
+        <span style="color:#8d99ab;">Total to max</span>
+        <span style="color:#fcd34d;">${fmt(xpToMax)} XP</span>
+      </div>`,
+      `<div style="font-size:0.8em;color:#8d99ab;margin-top:2px;">~${fmtCrystals(xpToMax)} Synthesis Crystals &nbsp;|&nbsp; ~${fmtStones(xpToMax)} Synthesis Stones</div>`
+    ].join('');
+
+    breakdownHtml = `
+      <div style="margin-top:12px;">
+        <div style="font-size:0.8em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">XP Remaining</div>
+        ${breakdownRows}
+      </div>`;
+
+    if (!atAwakeningPt && cloakDef.nextCloak) {
+      const xpToAwaken = expNeededToReach(rowValues, gradeIdx, currentExp, cloakDef.awakeningIdx);
+      breakdownHtml += `
+        <div style="margin-top:8px;padding:8px 12px;background:#0a1e2e;border:1px solid #1e4d6b;border-radius:6px;font-size:0.85em;display:flex;justify-content:space-between;align-items:center;">
+          <span><span style="color:#86efac;">Awaken at ${escapeHtml(cloakDef.awakeningGrade)}</span> <span style="color:#8d99ab;">→ ${escapeHtml(cloakDef.nextCloak)}</span></span>
+          <span style="color:#eef2f7;font-weight:600;">${fmt(xpToAwaken)} XP</span>
+        </div>`;
+    }
+  }
+
+  const awakenBadge = isAtMax
+    ? `<div style="margin-top:12px;padding:10px 14px;background:#0a2a1a;border:1px solid #16a34a;border-radius:8px;color:#4ade80;font-weight:600;font-size:0.9em;">
+        This cloak is at its maximum grade!
+       </div>`
+    : atAwakeningPt && cloakDef.nextCloak
+    ? `<div style="margin-top:12px;padding:10px 14px;background:#0a2a1a;border:1px solid #16a34a;border-radius:8px;color:#4ade80;font-weight:600;font-size:0.9em;">
+        Ready to Awaken! Use your scroll to become <strong>${escapeHtml(cloakDef.nextCloak)}</strong>.
+       </div>`
+    : '';
 
   return `
     <div class="card" id="cloak-where-am-i">
-      <h3>Where Am I?</h3>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px;">
-        <div>
-          <label style="display:block;margin-bottom:4px;font-size:0.85em;opacity:0.7;">Cloak Type</label>
-          <select onchange="window.updateErenorCloakWAI('cloakType', this.value)" style="width:100%;">
+      <h3 style="margin-top:0;">Where Am I?</h3>
+      <p class="notice" style="margin:0 0 16px 0;">
+        Select your cloak type and current grade, then enter your current EXP (first number on your tooltip).
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div style="grid-column:1/-1;">
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Cloak Type</label>
+          <select onchange="window.updateErenorCloakWAI('cloakType', this.value)"
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
             ${cloakOptions}
           </select>
         </div>
         <div>
-          <label style="display:block;margin-bottom:4px;font-size:0.85em;opacity:0.7;">Current Grade</label>
-          <select onchange="window.updateErenorCloakWAI('gradeIndex', parseInt(this.value))" style="width:100%;">
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current Grade</label>
+          <select onchange="window.updateErenorCloakWAI('gradeIndex', parseInt(this.value))"
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
             ${gradeOptions}
           </select>
         </div>
         <div>
-          <label style="display:block;margin-bottom:4px;font-size:0.85em;opacity:0.7;">EXP in Current Grade</label>
-          <input
-            type="number" min="0" max="${gradeCost}" value="${currentExp}"
-            placeholder="0" style="width:100%;"
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current EXP (first number on tooltip)</label>
+          <input type="number" min="0" max="${gradeCost}" value="${currentExp}" placeholder="e.g. 5000"
             onchange="window.updateErenorCloakWAI('currentExp', parseFloat(this.value) || 0)"
-          >
-          <div style="font-size:0.8em;opacity:0.5;margin-top:3px;">Max: ${fmt(gradeCost)} EXP</div>
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;box-sizing:border-box;">
+          <div style="font-size:0.78em;color:#8d99ab;margin-top:3px;">Max: ${fmt(gradeCost)} EXP</div>
         </div>
       </div>
 
-      <!-- Grade progress bar -->
-      <div style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;font-size:0.85em;margin-bottom:4px;">
-          <span>${escapeHtml(currentGradeData?.name ?? "")} Grade</span>
-          <span>${fmt(currentExp)} / ${fmt(gradeCost)} EXP &nbsp;(${progressPct.toFixed(1)}%)</span>
+      <div style="background:#1a2535;border:1px solid #394252;border-radius:10px;padding:16px;">
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Your Cloak</div>
+          <div style="font-size:1.05em;font-weight:700;">
+            <span style="color:${gradeColor};">${escapeHtml(currentGradeData?.name ?? '')}</span>
+            <span style="color:#93c5fd;margin-left:6px;">${escapeHtml(cloakDef.label)}</span>
+          </div>
         </div>
-        <div style="background:rgba(255,255,255,0.1);border-radius:4px;height:10px;overflow:hidden;">
-          <div style="width:${progressPct.toFixed(1)}%;background:var(--accent,#2dd4bf);height:100%;border-radius:4px;transition:width 0.3s;"></div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:0.85em;margin-bottom:6px;">
+            <span style="color:#8d99ab;">Grade Progress</span>
+            <span style="color:#eef2f7;">${fmt(currentExp)} / ${fmt(gradeCost)} EXP
+              <span style="color:${gradeColor};margin-left:4px;">(${progressPct.toFixed(1)}%)</span>
+            </span>
+          </div>
+          <div style="height:10px;background:#0d1b2a;border-radius:5px;overflow:hidden;">
+            <div style="height:100%;width:${progressPct.toFixed(1)}%;background:${gradeColor};border-radius:5px;"></div>
+          </div>
+          ${nextGradeData ? `<div style="font-size:0.82em;color:#8d99ab;margin-top:5px;">${fmt(remainInGrade)} XP to reach <span style="color:${GRADE_COLORS[nextGradeData.name] || '#eef2f7'};">${escapeHtml(nextGradeData.name)}</span></div>` : ''}
         </div>
-      </div>
-
-      <!-- Result cards -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;">
-
-        ${nextGradeData && expToNext > 0 ? `
-          <div class="summary-box">
-            <div style="font-weight:bold;margin-bottom:8px;">Next Grade: ${escapeHtml(nextGradeData.name)}</div>
-            <div style="font-size:1.05em;margin-bottom:6px;"><strong>${fmt(expToNext)}</strong> EXP needed</div>
-            <div style="font-size:0.85em;opacity:0.8;">~${fmtCrystals(expToNext)} Synthesis Crystals</div>
-            <div style="font-size:0.85em;opacity:0.8;">~${fmtStones(expToNext)} Synthesis Stones</div>
-          </div>
-        ` : !nextGradeData ? `
-          <div class="summary-box" style="border-color:var(--accent,#2dd4bf);">
-            <div style="font-weight:bold;margin-bottom:6px;">Grade: ${escapeHtml(currentGradeData?.name ?? "")}</div>
-            <div style="color:var(--accent,#2dd4bf);font-size:0.9em;">Max grade for this tier!</div>
-          </div>
-        ` : ""}
-
-        ${!atAwakeningPt && cloakDef.nextCloak ? `
-          <div class="summary-box">
-            <div style="font-weight:bold;margin-bottom:8px;">Awakening: ${escapeHtml(cloakDef.awakeningGrade)}</div>
-            <div style="font-size:1.05em;margin-bottom:6px;"><strong>${fmt(expToAwaken)}</strong> EXP needed</div>
-            <div style="font-size:0.85em;opacity:0.8;">~${fmtCrystals(expToAwaken)} Synthesis Crystals</div>
-            <div style="font-size:0.85em;opacity:0.8;">~${fmtStones(expToAwaken)} Synthesis Stones</div>
-            <div style="font-size:0.82em;opacity:0.6;margin-top:6px;">Becomes: ${escapeHtml(cloakDef.nextCloak)}</div>
-          </div>
-        ` : atAwakeningPt && cloakDef.nextCloak ? `
-          <div class="summary-box" style="border-color:var(--accent,#2dd4bf);">
-            <div style="font-weight:bold;margin-bottom:6px;">Ready to Awaken!</div>
-            <div style="font-size:0.9em;">You've reached <strong>${escapeHtml(cloakDef.awakeningGrade)}</strong>.</div>
-            <div style="font-size:0.9em;margin-top:4px;">Use your scroll to become a<br><strong>${escapeHtml(cloakDef.nextCloak)}</strong>.</div>
-          </div>
-        ` : ""}
-
-        <div class="summary-box">
-          <div style="font-weight:bold;margin-bottom:8px;">Max This Tier: Eternal</div>
-          ${expToFillAll > 0 ? `
-            <div style="font-size:1.05em;margin-bottom:6px;"><strong>${fmt(expToFillAll)}</strong> EXP needed</div>
-            <div style="font-size:0.85em;opacity:0.8;">~${fmtCrystals(expToFillAll)} Synthesis Crystals</div>
-            <div style="font-size:0.85em;opacity:0.8;">~${fmtStones(expToFillAll)} Synthesis Stones</div>
-          ` : `
-            <div style="color:var(--accent,#2dd4bf);font-size:0.9em;">Tier maxed out!</div>
-          `}
-        </div>
-
+        ${breakdownHtml}
+        ${awakenBadge}
         ${calcProgress ? `
-          <div class="summary-box">
-            <div style="font-weight:bold;margin-bottom:8px;">Your Stones (EXP Calc)</div>
-            <div style="margin-bottom:6px;">+<strong>${fmt(calcExp)}</strong> EXP from inventory</div>
+          <div style="margin-top:12px;padding:10px 14px;background:#131920;border:1px solid #394252;border-radius:8px;">
+            <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Your Stones (+${fmt(calcExp)} EXP)</div>
             ${calcProgress.maxed ? `
-              <div style="color:var(--accent,#2dd4bf);font-size:0.9em;">Enough to max this tier!</div>
+              <div style="color:#4ade80;font-size:0.9em;">Enough to max this cloak!</div>
             ` : calcProgress.gradeIndex > gradeIdx ? `
-              <div style="font-size:0.9em;">Lands you at: <strong>${escapeHtml(GRADE_NAMES[calcProgress.gradeIndex])}</strong></div>
-              <div style="font-size:0.85em;opacity:0.8;margin-top:3px;">${fmt(calcProgress.expInGrade)} EXP into that grade</div>
+              <div style="font-size:0.9em;">Lands at: <strong style="color:${GRADE_COLORS[GRADE_NAMES[calcProgress.gradeIndex]] || '#eef2f7'};">${escapeHtml(GRADE_NAMES[calcProgress.gradeIndex])}</strong></div>
+              <div style="font-size:0.85em;color:#8d99ab;margin-top:3px;">${fmt(calcProgress.expInGrade)} EXP into that grade</div>
             ` : `
-              <div style="font-size:0.9em;">Not enough to advance</div>
-              <div style="font-size:0.85em;opacity:0.8;margin-top:3px;">Still need ${fmt(Math.max(0, expToNext - calcExp))} more EXP</div>
+              <div style="font-size:0.9em;color:#8d99ab;">Not enough to advance grades yet</div>
             `}
           </div>
-        ` : ""}
-
+        ` : ''}
       </div>
     </div>
   `;

@@ -432,6 +432,57 @@ function getStorage(itemName) {
   return Number(appState.storage[itemName] || 0);
 }
 
+// ─── Where Am I ───────────────────────────────────────────────────────────────
+
+const WAI_KEY_WN = 'warriorNecklaceWAI';
+const MAX_NECKLACE_RANK = 13;
+
+function getWAINecklaceRank() { return parseInt(localStorage.getItem(WAI_KEY_WN) ?? '0'); }
+function saveWAINecklaceRank(r) { localStorage.setItem(WAI_KEY_WN, String(r)); }
+
+function renderNecklaceWhereAmI() {
+  const currentRank = getWAINecklaceRank();
+  const pct         = Math.round((currentRank / MAX_NECKLACE_RANK) * 100);
+  const remaining   = MAX_NECKLACE_RANK - currentRank;
+
+  const rankOpts = Array.from({ length: MAX_NECKLACE_RANK + 1 }, (_, i) =>
+    `<option value="${i}" ${i === currentRank ? 'selected' : ''}>Rank ${i}${i === 0 ? ' (just crafted)' : i === MAX_NECKLACE_RANK ? ' (max)' : ''}</option>`
+  ).join('');
+
+  return `
+    <div class="card" id="necklace-where-am-i">
+      <h3 style="margin-top:0;">Where Am I?</h3>
+      <p class="notice" style="margin:0 0 16px 0;">
+        Select your necklace's current rank to see how many Awakening Scrolls you still need.
+      </p>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current Rank</label>
+        <select onchange="window.updateNecklaceWAI(parseInt(this.value))"
+          style="width:100%;max-width:260px;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
+          ${rankOpts}
+        </select>
+      </div>
+      <div style="background:#1a2535;border:1px solid #394252;border-radius:10px;padding:16px;">
+        <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Your Necklace</div>
+        <div style="font-size:1.05em;font-weight:700;color:#5b8fd4;">Proven Warrior Necklace — Rank ${currentRank}</div>
+        <div style="margin-top:6px;">
+          <div style="height:10px;background:#0d1b2a;border-radius:5px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:#5b8fd4;border-radius:5px;transition:width 0.3s ease;"></div>
+          </div>
+          <div style="font-size:0.78em;color:#8d99ab;margin-top:3px;">${currentRank} / ${MAX_NECKLACE_RANK} ranks completed</div>
+        </div>
+        ${currentRank >= MAX_NECKLACE_RANK
+          ? `<div style="color:#4ade80;font-weight:700;margin-top:12px;">Your necklace is fully upgraded!</div>`
+          : `<div style="color:#8d99ab;font-size:0.88em;margin-top:10px;">
+               You still need <strong style="color:#eef2f7;">${remaining}</strong> Awakening Scroll${remaining !== 1 ? 's' : ''}
+               (Rank ${currentRank + 1}–${MAX_NECKLACE_RANK}).
+             </div>`
+        }
+      </div>
+    </div>
+  `;
+}
+
 function renderSection(section, quantity) {
 
   return `
@@ -485,6 +536,7 @@ export function renderPage() {
         Total Gold Needed is the sum of all Total Gold rows in that section.
       </p>
     </div>
+    ${renderNecklaceWhereAmI()}
   `;
 
   sections.forEach((section) => {
@@ -494,6 +546,11 @@ export function renderPage() {
 
   return html;
 }
+
+window.updateNecklaceWAI = function(rank) {
+  saveWAINecklaceRank(rank);
+  window.renderCurrentPage();
+};
 
 window.updateWarriorNecklaceQty = function(id, value) {
   saveQuantity(id, value);

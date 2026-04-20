@@ -12,7 +12,8 @@ try {
     readScanItems:     ()      => ipcRenderer.invoke('read-scan-items'),
     writeScanItems:    (items) => ipcRenderer.invoke('write-scan-items', items),
     getAddonDir:       ()      => ipcRenderer.invoke('get-addon-dir'),
-    readInventoryScan: ()      => ipcRenderer.invoke('read-inventory-scan'),
+    readInventoryScan:    ()   => ipcRenderer.invoke('read-inventory-scan'),
+    readProficiencyScan:  ()   => ipcRenderer.invoke('read-proficiency-scan'),
 
     // ── Auth ──────────────────────────────────────────────────────────────
     getAuthStatus:       ()    => ipcRenderer.invoke('get-auth-status'),

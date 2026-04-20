@@ -69,7 +69,17 @@ async function exchangeAndUpsert(code: string) {
     last_seen_at: new Date().toISOString(),
   }, { onConflict: 'discord_id' });
 
-  return { id: discordUser.id, name: discordUser.username, avatar };
+  // M-3: Fetch token_version so it can be embedded in the JWT for revocation checks
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('token_version')
+    .eq('discord_id', discordUser.id)
+    .single();
+
+  return {
+    id: discordUser.id, name: discordUser.username, avatar,
+    token_version: profile?.token_version ?? 1,
+  };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -86,14 +96,15 @@ Deno.serve(async (req) => {
 
     const user = await exchangeAndUpsert(code);
 
-    // Mint a 30-day signed session JWT
+    // Mint a 7-day signed session JWT — includes token_version for revocation
     const now = Math.floor(Date.now() / 1000);
     const token = await signToken({
-      discord_id: user.id,
-      name:       user.name,
-      avatar:     user.avatar || '',
-      iat:        now,
-      exp:        now + 60 * 60 * 24 * 7, // 7 days
+      discord_id:    user.id,
+      name:          user.name,
+      avatar:        user.avatar || '',
+      token_version: user.token_version,
+      iat:           now,
+      exp:           now + 60 * 60 * 24 * 7, // 7 days
     });
 
     // Redirect to Electron deep link — token + state for CSRF verification

@@ -97,7 +97,8 @@ function ensureAppDataDir() {
 const ADDON_DIR  = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon', 'ahscanner');
 const AH_PRICES  = path.join(ADDON_DIR, 'ah_prices.csv');
 const SCAN_ITEMS = path.join(ADDON_DIR, 'scan_items.csv');
-const INV_SCAN_PATH = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon', 'invscanner', 'inventory_scan.csv');
+const INV_SCAN_PATH  = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon', 'invscanner',  'inventory_scan.csv');
+const PROF_SCAN_PATH = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon', 'profscanner', 'proficiency_scan.csv');
 
 function ensureAddonDir() {
   if (!fs.existsSync(ADDON_DIR)) {
@@ -334,38 +335,24 @@ ipcMain.handle('add-to-scan-list', async (event, { itemName }) => {
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
-// Submit inventory items to Supabase (runs for all users silently)
+// Submit inventory items — routed through app-api (JWT-gated)
 ipcMain.handle('submit-inventory', async (event, items) => {
   try {
-    const { data, error } = await supabase.rpc('submit_inventory', { p_items: items });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, result: data };
+    return await callAppApi('submit-inventory', { items });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
-// Submit authoritative prices (staff+ only — server-verified before writing)
+// Submit authoritative prices (staff+ only — verified by app-api)
 ipcMain.handle('submit-authoritative-prices', async (event, items) => {
   try {
-    await enforceRole('staff');
-    let pushed = 0;
-    for (const { item_name, price } of items) {
-      const { error } = await supabase.rpc('submit_authoritative_price', {
-        p_item_name: item_name,
-        p_price:     price,
-      });
-      if (!error) pushed++;
-    }
-    return { ok: true, pushed };
+    return await callAppApi('submit-authoritative-price', { items });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 // Get items with no price yet (pending_price) — dev panel only
 ipcMain.handle('get-pending-price-items', async () => {
   try {
-    await enforceRole('dev');
-    const { data, error } = await supabase.rpc('get_pending_price_items');
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, items: data || [] };
+    return await callAppApi('get-pending-price-items');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -388,6 +375,24 @@ ipcMain.handle('read-inventory-scan', () => {
         const guild  = parseInt(parts[4]?.trim() || '0');
         const coffer = parseInt(parts[5]?.trim() || '0');
         if (name && !isNaN(total)) data[name] = { total, bag, bank, guild, coffer };
+      }
+    }
+    return { ok: true, data };
+  } catch(e) { return { ok: false, data: {}, error: e.message }; }
+});
+
+ipcMain.handle('read-proficiency-scan', () => {
+  try {
+    if (!fs.existsSync(PROF_SCAN_PATH)) return { ok: false, data: {}, error: 'File not found' };
+    const lines = fs.readFileSync(PROF_SCAN_PATH, 'utf8').split('\n').filter(l => l.trim());
+    const data = {};
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].split(',');
+      if (parts.length >= 2) {
+        const skillName = parts[0].trim();
+        const points    = parseInt(parts[1].trim());
+        const character = parts[2]?.trim() || '';
+        if (skillName && !isNaN(points)) data[skillName] = { points, character };
       }
     }
     return { ok: true, data };
@@ -557,8 +562,9 @@ ipcMain.handle('handle-oauth-callback', async (event, callbackUrl) => {
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
-// Sign out — clears local session. No Supabase Auth session to revoke.
-ipcMain.handle('sign-out', () => {
+// Sign out — increments token_version server-side (revokes JWT), then clears local session.
+ipcMain.handle('sign-out', async () => {
+  try { await callAppApi('sign-out'); } catch { /* ignore — still clear locally */ }
   clearSession();
   stopMailPoll();
   return { ok: true };
@@ -594,25 +600,16 @@ ipcMain.handle('admin-revoke-pro', async (event, { userId }) => {
 
 ipcMain.handle('get-community-prices', async () => {
   try {
-    const { data, error } = await supabase.rpc('get_community_prices');
-    if (error) return { ok: false, error: error.message };
-    const prices = {};
-    for (const row of (data || [])) {
-      prices[row.item_name] = { price: row.price, updatedAt: row.updated_at };
-    }
-    return { ok: true, prices };
+    return await callAppApi('get-community-prices');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle('submit-community-price', async (event, { itemName, price }) => {
   try {
-    // M-2: Validate inputs
     const safeName = String(itemName || '').trim().replace(/[\r\n,]/g, '').slice(0, 200);
     if (!safeName) return { ok: false, error: 'Invalid item name' };
     if (typeof price !== 'number' || !isFinite(price) || price < 0) return { ok: false, error: 'Invalid price' };
-    const { data, error } = await supabase.rpc('submit_price', { p_item_name: safeName, p_price: price });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, result: data };
+    return await callAppApi('submit-price', { itemName: safeName, price });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -624,10 +621,10 @@ ipcMain.handle('bulk-submit-community-prices', async (event, items) => {
     for (const { item_name, price } of items) {
       const safeName = String(item_name || '').trim().replace(/[\r\n,]/g, '').slice(0, 200);
       if (!safeName || typeof price !== 'number' || !isFinite(price) || price < 0) continue;
-      const { data, error } = await supabase.rpc('submit_price', { p_item_name: safeName, p_price: price });
-      if (!error && data) {
-        if (data.status === 'accepted') accepted++;
-        else if (data.status === 'gray') gray++;
+      const data = await callAppApi('submit-price', { itemName: safeName, price });
+      if (data?.ok) {
+        if (data.result?.status === 'accepted') accepted++;
+        else if (data.result?.status === 'gray') gray++;
         else rejected++;
       }
     }
@@ -637,9 +634,7 @@ ipcMain.handle('bulk-submit-community-prices', async (event, items) => {
 
 ipcMain.handle('get-item-price-history', async (event, { itemName }) => {
   try {
-    const { data, error } = await supabase.rpc('get_item_price_history', { p_item_name: itemName });
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, history: data || [] };
+    return await callAppApi('get-item-price-history', { itemName });
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -730,9 +725,7 @@ ipcMain.handle('wiki-admin-reject', async (event, { id, feedback }) => {
 
 ipcMain.handle('wiki-get-news', async () => {
   try {
-    const { data, error } = await supabase.rpc('get_approved_wiki_articles');
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, articles: data || [] };
+    return await callAppApi('get-approved-wiki');
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -809,7 +802,7 @@ function getBundledAddonsDir() {
     : path.join(__dirname, 'addons');
 }
 
-const ADDON_NAMES = ['ahscanner', 'invscanner'];
+const ADDON_NAMES = ['ahscanner', 'invscanner', 'profscanner'];
 
 // Open a folder picker dialog — returns the selected path or null if cancelled.
 ipcMain.handle('pick-folder', async (event, { defaultPath } = {}) => {
@@ -940,13 +933,7 @@ ipcMain.handle('recipe-admin-reject', async (event, { id, feedback }) => {
 // Fetch all approved community recipes — shown to all users in Recipe Lookup
 ipcMain.handle('recipe-get-approved', async () => {
   try {
-    const { data, error } = await supabase
-      .from('recipe_submissions')
-      .select('id, output, output_qty, profession, labor, materials, notes')
-      .eq('status', 'approved')
-      .order('reviewed_at', { ascending: false });
-    if (error) return { ok: false, recipes: [], error: error.message };
-    return { ok: true, recipes: data || [] };
+    return await callAppApi('get-approved-recipes');
   } catch(e) { return { ok: false, recipes: [], error: e.message }; }
 });
 
@@ -1026,6 +1013,25 @@ if (process.defaultApp) {
 }
 
 app.whenReady().then(() => {
+  // M-2: Enforce CSP at the protocol level (overrides any meta tag in HTML).
+  // Removes unsafe-inline from script-src now that inline onclick handlers are gone.
+  // wss:// removed — Realtime subscription replaced with poll through app-api.
+  const { session } = require('electron');
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          "img-src 'self' https://cdn.discordapp.com data:; " +
+          "connect-src 'self' https://*.supabase.co;"
+        ],
+      },
+    });
+  });
+
   createWindow();
 
   // Auto-updater — only runs in packaged builds, not dev mode

@@ -783,7 +783,7 @@ window.showCreditsDonateModal = function() {
             font-size:13px;font-weight:700;color:#86efac;">2</div>
           <div>
             <div style="font-size:14px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Message me on Discord</div>
-            <div style="font-size:13px;color:#8d99ab;">Send a Discord message to <strong style="color:#93c5fd;">Sean6774</strong> letting me know you sent the credits and include your Discord username so I can activate your Pro access.</div>
+            <div style="font-size:13px;color:#8d99ab;">Send a Discord message to <strong style="color:#93c5fd;">Steve6774</strong> letting me know you sent the credits and include your Discord username so I can activate your Pro access.</div>
           </div>
         </div>
 

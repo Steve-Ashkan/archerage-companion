@@ -13,7 +13,7 @@ import { renderPage as renderCastleInfusionsPage } from "./pages/castleInfusions
 import { renderPage as renderErenorUpgradingPage } from "./pages/erenorUpgrading.js";
 import { renderPage as renderErenorCloakPage } from "./pages/erenorCloak.js";
 import { renderPage as renderLibraryGearPage } from "./pages/libraryGear.js";
-import { renderPage as renderHiramGearPage } from "./pages/hiramGear.js";
+import { renderPage as renderHiramGearPage, initHiramPage } from "./pages/hiramGear.js";
 import { renderPage as renderTrimmerPage } from "./pages/trimmer.js";
 import { renderPage as renderAchievementsPage } from "./pages/achievements.js";
 import { renderPage as renderMiscPage } from "./pages/misc.js";
@@ -53,7 +53,7 @@ const PAGE_REGISTRY = {
   erenorUpgrading: { render: renderErenorUpgradingPage,  inject: true  },
   erenorCloak:     { render: renderErenorCloakPage,      inject: true  },
   libraryGear:     { render: renderLibraryGearPage,      inject: true  },
-  hiramGear:       { render: renderHiramGearPage,        inject: true  },
+  hiramGear:       { render: renderHiramGearPage,        inject: true,  afterRender: initHiramPage },
   addons:          { render: renderAddonsPage,            inject: true  },
   trimmer:         { render: renderTrimmerPage,          inject: true  },
   achievements:    { render: renderAchievementsPage,     inject: true  },
@@ -91,6 +91,20 @@ function updateTopButtonVisibility() {
 function resetTopButtonState() {
   topButtonActivated = false;
   updateTopButtonVisibility();
+}
+
+// M-2: Replace inline onclick handlers removed from index.html
+function initStaticButtons() {
+  const installBtn = document.getElementById('update-install-btn');
+  if (installBtn && !installBtn.dataset.ready) {
+    installBtn.dataset.ready = 'true';
+    installBtn.addEventListener('click', () => window.electronAPI?.installUpdate());
+  }
+  const mailBtn = document.getElementById('mail-envelope');
+  if (mailBtn && !mailBtn.dataset.ready) {
+    mailBtn.dataset.ready = 'true';
+    mailBtn.addEventListener('click', () => window.openMailModal?.());
+  }
 }
 
 function initTopButton() {
@@ -277,6 +291,7 @@ document.addEventListener("keydown", (e) => {
 
 
 initTopButton();
+initStaticButtons();
 
 // Show update banner when a new version is downloaded and ready
 window.electronAPI?.onUpdateReady?.((version) => {

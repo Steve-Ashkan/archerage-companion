@@ -273,8 +273,87 @@ function sumGold(rows, key) {
   return rows.reduce((sum, row) => sum + Number(row[key] || 0), 0);
 }
 
+// ─── Where Am I ───────────────────────────────────────────────────────────────
+
+const WAI_KEY_EU = 'erenorUpgradingWAI';
+
+const EU_GRADES = ['Heroic', 'Unique', 'Celestial', 'Divine', 'Epic', 'Legendary', 'Mythic', 'Eternal'];
+
+const EU_GRADE_COLORS = {
+  Heroic:    '#c084fc',
+  Unique:    '#fb923c',
+  Celestial: '#fbbf24',
+  Divine:    '#f87171',
+  Epic:      '#6b8cba',
+  Legendary: '#fcd34d',
+  Mythic:    '#ef4444',
+  Eternal:   '#67e8f9',
+};
+
+function getWAIGrade() { return localStorage.getItem(WAI_KEY_EU) || 'Heroic'; }
+function saveWAIGrade(g) { localStorage.setItem(WAI_KEY_EU, g); }
+
+function renderEUWhereAmI() {
+  const currentGrade = getWAIGrade();
+  const currentIdx   = EU_GRADES.indexOf(currentGrade);
+  const color        = EU_GRADE_COLORS[currentGrade] || '#566174';
+  const doneSteps    = currentIdx; // steps completed = index of current grade
+  const totalSteps   = STAFF_UPGRADE_STEPS.length;
+  const pct          = totalSteps > 0 ? Math.round((doneSteps / totalSteps) * 100) : 0;
+  const remaining    = STAFF_UPGRADE_STEPS.slice(doneSteps);
+
+  const gradeOpts = EU_GRADES.map(g => {
+    const c = EU_GRADE_COLORS[g] || '#eef2f7';
+    return `<option value="${escapeHtml(g)}" ${g === currentGrade ? 'selected' : ''} style="color:${c};">${escapeHtml(g)}</option>`;
+  }).join('');
+
+  const stepRows = remaining.map(s => `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #1e2a38;">
+      <div style="font-size:0.88em;color:#eef2f7;">${escapeHtml(s.step)}</div>
+      <div style="display:flex;gap:14px;font-size:0.82em;flex-shrink:0;">
+        <span style="color:#fcd34d;">${escapeHtml(s.chance)}</span>
+        <span style="color:#8d99ab;">${formatGold(s.goldCost)}</span>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="card" id="eu-where-am-i">
+      <h3 style="margin-top:0;">Where Am I?</h3>
+      <p class="notice" style="margin:0 0 16px 0;">
+        Select your staff's current grade to see remaining upgrade steps to Eternal.
+      </p>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current Grade</label>
+        <select onchange="window.updateEUWhereAmI(this.value)"
+          style="width:100%;max-width:260px;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
+          ${gradeOpts}
+        </select>
+      </div>
+      <div style="background:#1a2535;border:1px solid #394252;border-radius:10px;padding:16px;">
+        <div style="margin-bottom:${remaining.length ? '12px' : '0'};">
+          <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Your Staff</div>
+          <div style="font-size:1.05em;font-weight:700;color:${color};">${escapeHtml(currentGrade)}</div>
+          <div style="margin-top:6px;">
+            <div style="height:10px;background:#0d1b2a;border-radius:5px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:${color};border-radius:5px;transition:width 0.3s ease;"></div>
+            </div>
+            <div style="font-size:0.78em;color:#8d99ab;margin-top:3px;">${doneSteps} / ${totalSteps} steps completed</div>
+          </div>
+        </div>
+        ${currentGrade === 'Eternal'
+          ? `<div style="color:#4ade80;font-weight:700;padding-top:4px;">Your staff is fully upgraded!</div>`
+          : `<div style="font-size:0.82em;color:#8d99ab;font-weight:600;margin-bottom:4px;">${remaining.length} step${remaining.length !== 1 ? 's' : ''} remaining</div>
+             ${stepRows}`
+        }
+      </div>
+    </div>
+  `;
+}
+
 function renderAnchorNav() {
   const links = [
+    ["#eu-where-am-i",   "Where Am I?"],
     ["#ayanad-staff", "Ayanad Staff"],
     ["#staff-upgrading", "Staff Upgrading"],
     ["#exp-requirements", "EXP Requirements"],
@@ -696,6 +775,7 @@ export function renderPage() {
 
   return `
     ${renderAnchorNav()}
+    ${renderEUWhereAmI()}
     ${renderAyanadStaffSection(staffCount, ayanadRows)}
     ${renderStaffUpgradingSection(staffCount)}
     ${renderExpRequirementsSection()}
@@ -704,6 +784,11 @@ export function renderPage() {
     ${renderTemperingSection()}
   `;
 }
+
+window.updateEUWhereAmI = function(grade) {
+  saveWAIGrade(grade);
+  window.renderCurrentPage();
+};
 
 window.updateErenorUpgradingStaffCount = function(value) {
   saveStaffCount(value);

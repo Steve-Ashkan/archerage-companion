@@ -3,7 +3,7 @@
 // Other pages (Submit Recipe, Recipe Lookup) read from this to show accurate labor.
 
 import {
-  SKILL_GROUPS, PROFICIENCY_RANKS, RANK_COLORS,
+  SKILL_GROUPS, PROFICIENCY_RANKS, RANK_COLORS, ALL_SKILLS,
   getRankFromPoints, getRankColor, effectiveLabor,
   getProfData, saveProfData,
 } from '../data/proficiency.js';
@@ -84,8 +84,15 @@ export function renderPage() {
           Enter your points per skill. Your rank auto-fills into Submit a Recipe and Recipe Lookup.
         </p>
       </div>
-      <button class="prof-reset-btn" onclick="window.profResetAll()">Reset All</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button onclick="window.profImportScan()"
+          style="padding:8px 16px;background:#1a2a3a;border:1px solid #2a5a7a;color:#93c5fd;border-radius:8px;font-size:13px;cursor:pointer;">
+          Import from Scanner
+        </button>
+        <button class="prof-reset-btn" onclick="window.profResetAll()">Reset All</button>
+      </div>
     </div>
+    <div id="prof-import-status" style="display:none;margin-bottom:16px;"></div>
 
     <div class="prof-columns">
       ${SKILL_GROUPS.map(group => `
@@ -203,5 +210,67 @@ window.profUpdate = function(skill, rawValue) {
 window.profResetAll = function() {
   if (!confirm('Clear all proficiency data?')) return;
   saveProfData({});
+  window.renderCurrentPage();
+};
+
+window.profImportScan = async function() {
+  const statusEl = document.getElementById('prof-import-status');
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = `<div style="padding:10px 14px;background:#1a2535;border:1px solid #394252;border-radius:8px;color:#8d99ab;font-size:13px;">Reading scan file…</div>`;
+  }
+
+  let result;
+  try {
+    result = await window.electronAPI.readProficiencyScan();
+  } catch(e) {
+    if (statusEl) statusEl.innerHTML = `<div style="padding:10px 14px;background:#2a1a1a;border:1px solid #5a2a2a;border-radius:8px;color:#f87171;font-size:13px;">Error: ${e.message}</div>`;
+    return;
+  }
+
+  if (!result.ok) {
+    const msg = result.error === 'File not found'
+      ? 'No scan file found. Type <strong>!profscan</strong> in-game first, then try again.'
+      : `Read error: ${result.error}`;
+    if (statusEl) statusEl.innerHTML = `<div style="padding:10px 14px;background:#2a1a1a;border:1px solid #5a2a2a;border-radius:8px;color:#f87171;font-size:13px;">${msg}</div>`;
+    return;
+  }
+
+  // Build a lowercase lookup map of known skills
+  const skillLower = {};
+  for (const skill of ALL_SKILLS) skillLower[skill.toLowerCase()] = skill;
+
+  const data = getProfData();
+  let matched = 0;
+  let character = '';
+  const unmatched = [];
+
+  for (const [rawName, entry] of Object.entries(result.data)) {
+    const canonical = skillLower[rawName.toLowerCase()];
+    if (canonical) {
+      data[canonical] = { points: entry.points };
+      matched++;
+      if (!character && entry.character) character = entry.character;
+    } else {
+      unmatched.push(rawName);
+    }
+  }
+
+  saveProfData(data);
+
+  const total = Object.keys(result.data).length;
+  const charLine = character ? ` from <strong style="color:#eef2f7;">${character}</strong>` : '';
+  const unmatchedNote = unmatched.length
+    ? `<div style="margin-top:6px;font-size:11px;color:#566174;">Skipped (not in skill list): ${unmatched.join(', ')}</div>`
+    : '';
+
+  if (statusEl) {
+    statusEl.innerHTML = `
+      <div style="padding:10px 14px;background:#0a2a1a;border:1px solid #16a34a;border-radius:8px;color:#4ade80;font-size:13px;">
+        Imported <strong>${matched}</strong> of ${total} skills${charLine}.
+        ${unmatchedNote}
+      </div>`;
+  }
+
   window.renderCurrentPage();
 };

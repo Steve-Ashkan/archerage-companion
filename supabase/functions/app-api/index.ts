@@ -71,6 +71,37 @@ function snowflake(v: unknown): string | null {
   return /^\d{17,20}$/.test(s) ? s : null;
 }
 
+// H-4: Per-user rate limiting using the rate_limits table.
+// Returns false if the caller has exceeded their hourly limit for this action.
+const RATE_LIMITS: Record<string, number> = {
+  'submit-price':               200,
+  'submit-inventory':            10,
+  'arc-submit-redemption':        5,
+  'wiki-submit':                 20,
+  'recipe-submit':               20,
+  'submit-authoritative-price': 500,
+};
+
+async function checkRateLimit(db: ReturnType<typeof import('https://esm.sh/@supabase/supabase-js@2').createClient>, discord_id: string, action: string): Promise<boolean> {
+  const limit = RATE_LIMITS[action];
+  if (!limit) return true;
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count } = await db
+    .from('rate_limits')
+    .select('*', { count: 'exact', head: true })
+    .eq('discord_id', discord_id)
+    .eq('action', action)
+    .gte('created_at', since);
+  if ((count ?? 0) >= limit) return false;
+  await db.from('rate_limits').insert({ discord_id, action });
+  // Clean up stale entries async — don't block the response
+  db.from('rate_limits')
+    .delete()
+    .lt('created_at', new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString())
+    .then(() => {}).catch(() => {});
+  return true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200 });
 
@@ -93,6 +124,54 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
+
+    // M-3: Token version check — reject revoked JWTs
+    if (caller && discord_id && typeof caller.token_version === 'number') {
+      const { data: tv } = await db.from('profiles').select('token_version').eq('discord_id', discord_id).single();
+      if ((tv?.token_version ?? 1) !== caller.token_version) {
+        return json({ ok: false, error: 'Session revoked, please sign in again' }, 401);
+      }
+    }
+
+    // ── H-1: Public reads — no auth required ─────────────────────────────────
+
+    if (action === 'get-community-prices') {
+      const { data, error } = await db.rpc('get_community_prices');
+      if (error) return json({ ok: false, error: error.message });
+      const prices: Record<string, unknown> = {};
+      for (const row of (data || [])) {
+        prices[row.item_name] = { price: row.price, updatedAt: row.updated_at };
+      }
+      return json({ ok: true, prices });
+    }
+
+    if (action === 'get-item-price-history') {
+      const itemName = str(params.itemName, 200);
+      if (!itemName) return json({ ok: false, error: 'Missing itemName' });
+      const { data, error } = await db.rpc('get_item_price_history', { p_item_name: itemName });
+      if (error) return json({ ok: false, error: error.message });
+      return json({ ok: true, history: data || [] });
+    }
+
+    if (action === 'get-approved-wiki') {
+      const { data, error } = await db
+        .from('wiki_submissions')
+        .select('id, title, category, content, discord_name, ign, reviewed_at')
+        .eq('status', 'approved')
+        .order('reviewed_at', { ascending: false });
+      if (error) return json({ ok: false, error: error.message });
+      return json({ ok: true, articles: data || [] });
+    }
+
+    if (action === 'get-approved-recipes') {
+      const { data, error } = await db
+        .from('recipe_submissions')
+        .select('id, output, output_qty, profession, labor, materials, notes')
+        .eq('status', 'approved')
+        .order('reviewed_at', { ascending: false });
+      if (error) return json({ ok: false, recipes: [], error: error.message });
+      return json({ ok: true, recipes: data || [] });
+    }
 
     // ── get-profile: returns own profile from verified token ──────────────────
     if (action === 'get-profile') {
@@ -118,6 +197,61 @@ Deno.serve(async (req) => {
     {
       const { data } = await db.from('profiles').select('role').eq('discord_id', discord_id).single();
       callerRole = data?.role || 'free';
+    }
+
+    // ── Sign out — increments token_version to invalidate existing JWTs ──────
+
+    if (action === 'sign-out') {
+      // M-3: Increment token_version to invalidate this user's existing JWTs
+      await db.rpc('increment_token_version', { p_discord_id: discord_id });
+      return json({ ok: true });
+    }
+
+    // ── H-1: Authenticated writes ─────────────────────────────────────────────
+
+    if (action === 'submit-price') {
+      const itemName = str(params.itemName, 200);
+      const price    = typeof params.price === 'number' && isFinite(params.price) && params.price >= 0 ? params.price : null;
+      if (!itemName || price === null) return json({ ok: false, error: 'Invalid params' });
+      if (!await checkRateLimit(db, discord_id, 'submit-price')) {
+        return json({ ok: false, error: 'Rate limit exceeded (200/hour)' }, 429);
+      }
+      const { data, error } = await db.rpc('submit_price', { p_item_name: itemName, p_price: price });
+      if (error) return json({ ok: false, error: error.message });
+      return json({ ok: true, result: data });
+    }
+
+    if (action === 'submit-inventory') {
+      if (!Array.isArray(params.items)) return json({ ok: false, error: 'Invalid items' });
+      if (!await checkRateLimit(db, discord_id, 'submit-inventory')) {
+        return json({ ok: false, error: 'Rate limit exceeded (10/hour)' }, 429);
+      }
+      const { data, error } = await db.rpc('submit_inventory', { p_items: params.items });
+      if (error) return json({ ok: false, error: error.message });
+      return json({ ok: true, result: data });
+    }
+
+    if (action === 'submit-authoritative-price') {
+      if (!hasRole(callerRole, 'staff')) return json({ ok: false, error: 'Requires staff role' }, 403);
+      if (!Array.isArray(params.items)) return json({ ok: false, error: 'Invalid items' });
+      if (!await checkRateLimit(db, discord_id, 'submit-authoritative-price')) {
+        return json({ ok: false, error: 'Rate limit exceeded (500/hour)' }, 429);
+      }
+      let pushed = 0;
+      for (const { item_name, price } of params.items) {
+        const safeName = str(item_name, 200);
+        if (!safeName || typeof price !== 'number' || !isFinite(price) || price < 0) continue;
+        const { error } = await db.rpc('submit_authoritative_price', { p_item_name: safeName, p_price: price });
+        if (!error) pushed++;
+      }
+      return json({ ok: true, pushed });
+    }
+
+    if (action === 'get-pending-price-items') {
+      if (!hasRole(callerRole, 'dev')) return json({ ok: false, error: 'Requires dev role' }, 403);
+      const { data, error } = await db.rpc('get_pending_price_items');
+      if (error) return json({ ok: false, error: error.message });
+      return json({ ok: true, items: data || [] });
     }
 
     // ── Admin: user management ────────────────────────────────────────────────
@@ -212,6 +346,9 @@ Deno.serve(async (req) => {
     // ── Wiki submissions ──────────────────────────────────────────────────────
 
     if (action === 'wiki-submit') {
+      if (!await checkRateLimit(db, discord_id, 'wiki-submit')) {
+        return json({ ok: false, error: 'Rate limit exceeded (20/hour)' }, 429);
+      }
       const title    = str(params.title,    200);
       const category = str(params.category, 100);
       const content  = str(params.content,  65536);
@@ -278,6 +415,9 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'arc-submit-redemption') {
+      if (!await checkRateLimit(db, discord_id, 'arc-submit-redemption')) {
+        return json({ ok: false, error: 'Rate limit exceeded (5/hour)' }, 429);
+      }
       const { rewardId, rewardLabel, pointsSpent, ignSnapshot, discordName, recipientId } = params;
       if (typeof pointsSpent !== 'number' || !Number.isInteger(pointsSpent) || pointsSpent <= 0) {
         return json({ ok: false, error: 'Invalid points amount' });
@@ -386,6 +526,9 @@ Deno.serve(async (req) => {
     // ── Recipe submissions ────────────────────────────────────────────────────
 
     if (action === 'recipe-submit') {
+      if (!await checkRateLimit(db, discord_id, 'recipe-submit')) {
+        return json({ ok: false, error: 'Rate limit exceeded (20/hour)' }, 429);
+      }
       const output    = str(params.output, 200);
       if (!output) return json({ ok: false, error: 'Missing output' });
       const outputQty = Math.max(1, parseInt(params.outputQty) || 1);

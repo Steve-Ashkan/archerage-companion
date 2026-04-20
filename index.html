@@ -3,13 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    script-src 'self' 'unsafe-inline';
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' https://cdn.discordapp.com data:;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co;
-  ">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https://cdn.discordapp.com data:; connect-src 'self' https://*.supabase.co;">
   <title>ArcheRage Companion</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -17,7 +11,7 @@
   <!-- Update banner — hidden until update is downloaded -->
   <div id="update-banner" style="display:none;">
     <span>⬆ Update ready — restart to apply</span>
-    <button onclick="window.electronAPI?.installUpdate()">Restart Now</button>
+    <button id="update-install-btn">Restart Now</button>
   </div>
 
   <h1>🔥 ArcheRage Companion</h1>
@@ -25,7 +19,7 @@
   <button id="floatingTopBtn" type="button" aria-label="Back to top">TOP</button>
 
   <!-- Mail envelope — hidden until user has unread mail -->
-  <button id="mail-envelope" onclick="window.openMailModal()" aria-label="Open mail" style="display:none;">
+  <button id="mail-envelope" aria-label="Open mail" style="display:none;">
     ✉
     <span id="mail-badge"></span>
   </button>

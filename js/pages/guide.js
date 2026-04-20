@@ -434,7 +434,7 @@ function renderPro() {
       </div>
       <div style="padding:10px 14px;background:#0a1a1a;border:1px solid #1a3a3a;border-radius:8px;">
         <div style="font-size:13px;font-weight:600;color:#86efac;margin-bottom:3px;">2,000 In-Game Credits</div>
-        <div style="font-size:13px;color:#8d99ab;">Mail 2,000 credits to <strong style="color:#eef2f7;">Ashkan</strong> in-game, then message <strong style="color:#93c5fd;">Sean6774</strong> on Discord. Pro activated within 1 hour.</div>
+        <div style="font-size:13px;color:#8d99ab;">Mail 2,000 credits to <strong style="color:#eef2f7;">Ashkan</strong> in-game, then message <strong style="color:#93c5fd;">Steve6774</strong> on Discord. Pro activated within 1 hour.</div>
       </div>
       <div style="padding:10px 14px;background:#0a0a1a;border:1px solid #1a1a3a;border-radius:8px;">
         <div style="font-size:13px;font-weight:600;color:#93c5fd;margin-bottom:3px;">2,000 ARC Points</div>

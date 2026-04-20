@@ -166,6 +166,140 @@ const SET_EFFECTS = {
 
 import { escapeHtml } from "../utils.js";
 
+// ─── WHERE AM I — STATE ───────────────────────────────────────────────────────
+
+const WAI_KEY = "ipnyshArtifactWAI";
+
+function getWAIState() {
+  try {
+    return JSON.parse(localStorage.getItem(WAI_KEY) || "{}");
+  } catch { return {}; }
+}
+
+function saveWAIState(s) { localStorage.setItem(WAI_KEY, JSON.stringify(s)); }
+
+const ARTIFACT_TYPES = [
+  { key: "armor",     label: "Armor Artifacts",     data: null /* filled below */ },
+  { key: "weapon",    label: "Weapon Artifacts",     data: null },
+  { key: "accessory", label: "Accessory Artifacts",  data: null },
+];
+
+// ─── WHERE AM I — RENDER ──────────────────────────────────────────────────────
+
+function renderWhereAmI() {
+  const s         = getWAIState();
+  const typeKey   = s.type   || "armor";
+  const curLevel  = s.level  != null ? Number(s.level) : 1;
+
+  // lazy-init artifact data refs after consts are declared
+  const artifactMap = { armor: ARMOR_ARTIFACT, weapon: WEAPON_ARTIFACT, accessory: ACCESSORY_ARTIFACT };
+  const artifact    = artifactMap[typeKey] || ARMOR_ARTIFACT;
+
+  // rows are Level 2 … Level 10; level 1 = not started
+  const allLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const maxLevel  = artifact.rows.length + 1; // 10
+
+  const typeOpts = ARTIFACT_TYPES.map(t =>
+    `<option value="${t.key}" ${t.key === typeKey ? "selected" : ""}>${escapeHtml(t.label)}</option>`
+  ).join("");
+
+  const levelOpts = allLevels.slice(0, maxLevel).map(l =>
+    `<option value="${l}" ${l === curLevel ? "selected" : ""}>Level ${l}${l === maxLevel ? " (Max)" : ""}</option>`
+  ).join("");
+
+  // Remaining rows = all rows with level number > curLevel
+  const remainingRows = artifact.rows.filter((_, i) => (i + 2) > curLevel);
+
+  let breakdownHtml = "";
+  if (remainingRows.length === 0) {
+    breakdownHtml = `
+      <div style="margin-top:12px;padding:10px 14px;background:#0a2a1a;border:1px solid #16a34a;border-radius:8px;color:#4ade80;font-weight:600;font-size:0.9em;">
+        This artifact is already at Level 10 (max)!
+      </div>`;
+  } else {
+    let totalTokens = 0, totalScales = 0;
+    const rowsHtml = remainingRows.map(r => {
+      const tokens = Number(r.noCost[0]) || 0;
+      const scales = Number(r.noCost[1]) || 0;
+      totalTokens += tokens;
+      totalScales += scales;
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #1e2a38;font-size:0.88em;gap:8px;">
+          <span style="color:#fcd34d;font-weight:600;white-space:nowrap;">${escapeHtml(r.level)}</span>
+          <span style="color:#94a3b8;font-size:0.85em;flex:1;">${escapeHtml(r.noEssence)}</span>
+          <span style="color:#93c5fd;white-space:nowrap;">${tokens.toLocaleString()} tokens</span>
+          ${scales > 0 ? `<span style="color:#fb923c;white-space:nowrap;">${scales} scales</span>` : ''}
+          <span style="color:#86efac;white-space:nowrap;">${escapeHtml(r.noCost[2])}</span>
+        </div>`;
+    }).join("");
+
+    breakdownHtml = `
+      <div style="margin-top:12px;">
+        <div style="font-size:0.8em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Remaining Levels (No Essence Path)</div>
+        <div style="display:flex;justify-content:space-between;font-size:0.75em;color:#8d99ab;padding:0 0 4px 0;border-bottom:2px solid #394252;">
+          <span>Level</span><span>Feed</span><span>Tokens</span><span>Gold</span>
+        </div>
+        ${rowsHtml}
+        <div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:700;border-top:2px solid #394252;margin-top:4px;font-size:0.9em;">
+          <span style="color:#8d99ab;">Totals to Level ${maxLevel}</span>
+          <span style="color:#93c5fd;">${totalTokens.toLocaleString()} tokens</span>
+          ${totalScales > 0 ? `<span style="color:#fb923c;">${totalScales} scales</span>` : ''}
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="card" id="ia-where-am-i">
+      <h3 style="margin-top:0;">Where Am I?</h3>
+      <p class="notice" style="margin:0 0 16px 0;">
+        Select your artifact type and current level to see what you still need to reach Level 10.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div>
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Artifact Type</label>
+          <select onchange="window.updateIpnyshWAI('type', this.value)"
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
+            ${typeOpts}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.8em;color:#8d99ab;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">Current Level</label>
+          <select onchange="window.updateIpnyshWAI('level', parseInt(this.value))"
+            style="width:100%;background:#131920;border:1px solid #394252;border-radius:6px;color:#eef2f7;padding:8px 10px;font-size:0.9em;">
+            ${levelOpts}
+          </select>
+        </div>
+      </div>
+
+      <div style="background:#1a2535;border:1px solid #394252;border-radius:10px;padding:16px;">
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.78em;color:#8d99ab;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Your Artifact</div>
+          <div style="font-size:1.05em;font-weight:700;">
+            <span style="color:#fcd34d;">Level ${curLevel}</span>
+            <span style="color:#93c5fd;margin-left:8px;">${escapeHtml(artifact.title)}</span>
+          </div>
+          ${curLevel < maxLevel ? `
+            <div style="margin-top:6px;">
+              <div style="height:8px;background:#0d1b2a;border-radius:4px;overflow:hidden;">
+                <div style="height:100%;width:${Math.round(((curLevel - 1) / (maxLevel - 1)) * 100)}%;background:#fcd34d;border-radius:4px;"></div>
+              </div>
+              <div style="font-size:0.78em;color:#8d99ab;margin-top:3px;">${curLevel - 1} / ${maxLevel - 1} levels completed</div>
+            </div>
+          ` : ''}
+        </div>
+        ${breakdownHtml}
+      </div>
+    </div>
+  `;
+}
+
+window.updateIpnyshWAI = function(field, value) {
+  const s = getWAIState();
+  s[field] = value;
+  saveWAIState(s);
+  window.renderCurrentPage();
+};
+
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 function esc(s) { return escapeHtml(String(s ?? "")); }
@@ -356,6 +490,7 @@ function renderArtifactCard(artifact) {
 
 export function renderPage() {
   const navLinks = [
+    { id: "ia-where-am-i",        label: "Where Am I?" },
     { id: "ia-set-effects",       label: "Set Effects" },
     { id: "ia-quick-ref",         label: "Quick Ref" },
     { id: "ia-armor-artifacts",   label: "Armor" },
@@ -405,6 +540,7 @@ export function renderPage() {
   return `
     <h1>Ipnysh Artifacts</h1>
     ${nav}
+    ${renderWhereAmI()}
     ${totalsNote}
     ${renderSetEffects()}
     ${renderUpgradeReference()}
