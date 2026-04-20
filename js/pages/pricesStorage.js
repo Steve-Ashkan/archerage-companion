@@ -638,6 +638,11 @@ export function renderPricesStoragePage() {
           title="${isPro() ? '' : 'Pro feature — upgrade to add custom items'}">
           ➕ Add Custom Item${isPro() ? '' : ' [PRO]'}
         </button>
+        <button type="button" onclick="window.zeroOutStorage()"
+          style="background:#2a1a1a; border-color:#6a2d2d; color:#f87171;"
+          title="Set all In Storage quantities to 0">
+          🗑 Zero Storage
+        </button>
         <input type="file" id="ahCsvInput" accept=".csv" style="display:none;" onchange="window.handleAHCsvFile(this)">
         <span id="ahImportStatus" style="color:#86efac; font-size:13px; align-self:center;"></span>
         ${userHasRole('staff') ? `
@@ -1367,6 +1372,13 @@ window.removeCustomItem = function(name) {
   autoExportScanItems();
   window.renderCurrentPage();
 };
+window.zeroOutStorage = function() {
+  if (!confirm('Set all In Storage quantities to 0? This will reset your net worth. Prices are not affected.')) return;
+  const keys = Object.keys(appState.storage);
+  for (const item of keys) saveStorage(item, 0);
+  window.renderCurrentPage();
+};
+
 // ─── IMPORT INVENTORY FROM INVSCANNER ────────────────────────────────────────
 
 window.triggerInventoryImport = async function() {

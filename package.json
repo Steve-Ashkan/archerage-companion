@@ -1,6 +1,6 @@
 {
   "name": "archerage-companion",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "ArcheRage Companion — crafting calculators, events, wiki, prices and more.",
   "main": "main.js",
   "scripts": {
