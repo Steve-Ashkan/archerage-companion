@@ -293,16 +293,36 @@ document.addEventListener("keydown", (e) => {
 initTopButton();
 initStaticButtons();
 
-// Show update banner when a new version is downloaded and ready
+// Force-update overlay — blocks UI and auto-installs after countdown
 window.electronAPI?.onUpdateReady?.((version) => {
-  const banner = document.getElementById('update-banner');
-  if (banner) {
-    banner.querySelector('span').textContent = `⬆ v${version} ready — restart to apply`;
-    banner.style.display = 'flex';
+  const overlay   = document.getElementById('update-overlay');
+  const title     = document.getElementById('update-overlay-title');
+  const countEl   = document.getElementById('update-countdown-num');
+  const installBtn = document.getElementById('update-install-btn');
+  if (!overlay) return;
+
+  if (title) title.textContent = `v${version} Ready to Install`;
+  overlay.style.display = 'flex';
+
+  let seconds = 30;
+  const tick = setInterval(() => {
+    seconds--;
+    if (countEl) countEl.textContent = seconds;
+    if (seconds <= 0) {
+      clearInterval(tick);
+      window.electronAPI.installUpdate();
+    }
+  }, 1000);
+
+  if (installBtn && !installBtn.dataset.ready) {
+    installBtn.dataset.ready = 'true';
+    installBtn.addEventListener('click', () => {
+      clearInterval(tick);
+      window.electronAPI.installUpdate();
+    });
   }
 });
 
-// Log update errors to console so we can diagnose
 window.electronAPI?.onUpdateError?.((msg) => {
   console.error('[updater] Error received in renderer:', msg);
 });

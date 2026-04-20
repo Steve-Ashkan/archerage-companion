@@ -8,10 +8,28 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Update banner — hidden until update is downloaded -->
-  <div id="update-banner" style="display:none;">
-    <span>⬆ Update ready — restart to apply</span>
-    <button id="update-install-btn">Restart Now</button>
+  <!-- Force-update overlay — blocks UI when a new version is ready -->
+  <div id="update-overlay" style="display:none;position:fixed;inset:0;z-index:99999;
+    background:rgba(5,10,18,0.96);align-items:center;justify-content:center;">
+    <div style="text-align:center;max-width:420px;padding:40px;background:#0d1b2a;
+      border:1px solid #1e3a5f;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,0.6);">
+      <div style="font-size:36px;margin-bottom:12px;">⬆</div>
+      <div id="update-overlay-title" style="font-size:20px;font-weight:700;color:#eef2f7;margin-bottom:8px;">
+        Update Available
+      </div>
+      <div style="font-size:14px;color:#8d99ab;margin-bottom:24px;line-height:1.6;">
+        A new version of ArcheRage Companion is ready to install.<br>
+        Your data and settings are safe.
+      </div>
+      <button id="update-install-btn" style="background:#2563eb;color:#fff;border:none;
+        border-radius:8px;padding:12px 32px;font-size:15px;font-weight:600;cursor:pointer;
+        width:100%;margin-bottom:12px;transition:background 0.2s;">
+        Install Now
+      </button>
+      <div style="font-size:12px;color:#566174;">
+        Installs automatically in <span id="update-countdown-num">30</span>s
+      </div>
+    </div>
   </div>
 
   <h1>🔥 ArcheRage Companion</h1>

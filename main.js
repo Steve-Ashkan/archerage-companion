@@ -1067,7 +1067,7 @@ app.whenReady().then(() => {
 });
 
 ipcMain.handle('install-update', () => {
-  autoUpdater.quitAndInstall();
+  autoUpdater.quitAndInstall(true, true);
 });
 
 ipcMain.handle('check-for-update', () => {
