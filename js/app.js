@@ -1,10 +1,11 @@
 import { appState } from "./state.js";
 import { initAuth, isPro, getRole, getAuth, logout } from "./auth.js";
+import { initOnboarding } from "./onboarding.js";
 import { PAGES, GROUPS, DEV_PANEL_ID, isPageLocked } from "./gating.js";
 import { hasRole } from "./roles.js";
 import { CONFIG } from "./config.js";
 import { renderLandingPage, stopLandingRefresh } from "./pages/landing.js";
-import { renderEventSchedule } from './modules/events.js';
+import { renderEventSchedule, startBackgroundNotifications } from './modules/events.js';
 import { renderPage as renderNetWorthPage } from "./pages/netWorth.js";
 import { renderPricesStoragePage } from "./pages/pricesStorage.js";
 import { renderPage as renderAkashPage } from "./pages/akash.js";
@@ -158,6 +159,7 @@ export function buildTabBar() {
       : `<div class="tab-section">${group.label ? `<span class="tab-section-label">${group.label}</span>` : ""}</div>`;
 
     const buttons = pages.map(page => {
+      if (page.devOnly && !hasRole(userRole, "dev")) return "";
       const locked = isPageLocked(page.id, userRole);
       const cls = locked ? "tab-locked" : group.id === "pro" ? "tab-pro" : "";
       const title = locked ? 'title="Pro feature — upgrade to unlock"' : "";
@@ -264,6 +266,7 @@ window.__onAuthChange = function() {
   buildTabBar();
   const needsLogin = CONFIG.AUTH_ENABLED && !getAuth().user;
   showPage(needsLogin ? "login" : "landing");
+  initOnboarding();
 };
 
 // Sign-out handler — exposed so any page can call window.doSignOut()
@@ -342,10 +345,12 @@ initAuth().then(() => {
 
   setupCommunityPrices();
   initMailSystem();
+  startBackgroundNotifications();
   buildTabBar();
 
   // If auth is enabled and user isn't logged in, show login page.
   // Dev mode (DEV_FORCE_PRO) bypasses this and always lands on landing.
   const needsLogin = CONFIG.AUTH_ENABLED && !CONFIG.DEV_FORCE_PRO && !getAuth().user;
   showPage(needsLogin ? "login" : "landing");
+  initOnboarding();
 });

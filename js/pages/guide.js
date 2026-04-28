@@ -83,12 +83,12 @@ function renderInstallAddons() {
       <div style="font-size:13px;color:#94a3b8;line-height:1.6;">
         The AH Scanner and Inventory Scanner are Lua addons that run inside ArcheRage.
         Without them, the app can't pull prices or inventory from the game.
-        Install them first — you can always reinstall from the <strong style="color:#93c5fd;">Addons</strong> page if something goes wrong.
+        Install them first — you can always reinstall from the <strong style="color:#93c5fd;cursor:pointer;text-decoration:underline;" onclick="window.showPage('addons')">Addons</strong> page if something goes wrong.
       </div>
     </div>
 
     ${step(1, 'Open the Addons page',
-      `Click <strong style="color:#93c5fd;">Addons</strong> in the left menu under Tools.`
+      `Click <button onclick="window.showPage('addons')" style="background:#1a2535;border:1px solid #2d5a8a;color:#93c5fd;padding:3px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">Addons</button> in the left menu under Tools.`
     )}
     ${step(2, 'Select your ArcheRage addon folder',
       `Click <strong>Select Folder</strong> and navigate to your
@@ -103,7 +103,7 @@ function renderInstallAddons() {
     )}
 
     ${tip('If the install fails or something breaks, go back to the <strong>Addons</strong> page and click Reinstall at any time. It overwrites the existing files with a clean copy.')}
-    ${warn('The Addons page shows a green "Installed" badge once each addon is detected. If it still shows red after installing, double-check you selected the right folder.')}
+    ${warn('The Addons page shows a green "Installed" badge once each addon is detected. If it still shows red after installing, double-check that you selected the right folder.')}
   `);
 }
 
@@ -116,9 +116,11 @@ function renderGettingStarted() {
 
     ${step(1, 'Sign in with Discord',
       `Click <strong style="color:#93c5fd;">Sign in with Discord</strong> on the home screen.
-      A Discord login window will pop up — authorize the app and you're in.
+      Your browser will open a Discord authorization page — authorize the app and you're in.
       Your Discord username is used for your account. No password needed.`
     )}
+
+    ${warn('If Discord asks for a passkey or QR code and gets stuck, it means you\'re not logged into Discord in that browser. Open Discord in your browser and log in first, then come back and click Sign in with Discord again.')}
 
     ${step(2, 'Install the addons',
       `If you want to use the AH Scanner or Inventory Scanner, the app will show a red banner at the top
@@ -189,6 +191,16 @@ function renderAHScanner() {
 
     ${tip('The scan reads items from a list called <strong>scan_items.csv</strong> inside the addon folder. Ashkan manages this list — new items get added as they\'re discovered by the community.')}
     ${warn('The AH search is substring-based — the scanner filters results to exact name matches so prices are always accurate.')}
+
+    <div style="background:#1a1000;border:1px solid #fcd34d;border-radius:10px;padding:14px 16px;margin-top:10px;">
+      <div style="font-size:13px;font-weight:700;color:#fcd34d;margin-bottom:6px;">⭐ Free vs Pro — AH Scanner</div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
+        <strong style="color:#86efac;">Free users:</strong> The AH Scanner addon is completely free to install and run in-game.
+        However, the <strong>Import AH Prices</strong> button in the app is a Pro feature.
+        Your scan results are saved to a file, but you'll need to enter prices manually in Prices &amp; Storage.<br><br>
+        <strong style="color:#ffd166;">Pro users:</strong> Click <strong>Import AH Prices</strong> and all prices update from your latest scan automatically.
+      </div>
+    </div>
   `);
 }
 
@@ -204,8 +216,17 @@ function renderInvScanner() {
     ${step(3, 'Follow the wizard', `The wizard walks you through scanning your bag, storage, and guild bank cells one at a time. Click the buttons it shows — it tells you exactly what to open.`)}
     ${step(4, 'Import in the app', `Go to <strong>Prices &amp; Storage</strong> and click <strong style="color:#86efac;">Import Inventory</strong>. Your quantities update instantly.`)}
 
-    ${warn('Bank, Guild Bank, and Coffer scanning are currently limited due to a server-side API issue. Bag scanning works fully. The other containers will be enabled once the server is updated.')}
     ${tip('The inventory scanner replaces your stored quantities with the scan results — it\'s the source of truth. Running it regularly keeps your Net Worth accurate.')}
+
+    <div style="background:#1a1000;border:1px solid #fcd34d;border-radius:10px;padding:14px 16px;margin-top:10px;">
+      <div style="font-size:13px;font-weight:700;color:#fcd34d;margin-bottom:6px;">⭐ Free vs Pro — Inventory Scanner</div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
+        <strong style="color:#86efac;">Free users:</strong> You can run the scanner in-game and it works fully — bag, bank, guild bank, and coffer all scan correctly.
+        However, the <strong>Import Inventory</strong> button in the app is a Pro feature.
+        That means your quantities won't auto-update from the scan — you'll need to enter them manually in Prices &amp; Storage.<br><br>
+        <strong style="color:#ffd166;">Pro users:</strong> Click <strong>Import Inventory</strong> after scanning and all your quantities update instantly.
+      </div>
+    </div>
   `);
 }
 
@@ -216,21 +237,40 @@ function renderPricesStorage() {
       It powers the Net Worth page and all the calculator cost estimates.
     </p>
 
+    <div style="background:#1a1000;border:1px solid #fcd34d;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;color:#fcd34d;margin-bottom:6px;">⭐ Free vs Pro — Prices &amp; Storage</div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.7;">
+        <strong style="color:#86efac;">Free users</strong> can view all items and enter prices and quantities manually by clicking any field.
+        You can also run the AH Scanner and Inventory Scanner in-game — they work fully — but the import buttons are locked.
+        That means scan results won't auto-fill the app. <strong style="color:#eef2f7;">You'll need to type your prices and quantities in by hand.</strong><br><br>
+        <strong style="color:#ffd166;">Pro users</strong> get one-click imports from both scanners, auto-updated community prices, and the ability to add custom items.
+      </div>
+    </div>
+
     <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
       color:#566174;margin-bottom:10px;">Ways to update prices</div>
 
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
       <div style="padding:10px 14px;background:#1a2028;border:1px solid #2a3040;border-radius:8px;">
-        <div style="font-size:13px;font-weight:600;color:#eef2f7;margin-bottom:3px;">AH Scanner Import</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <div style="font-size:13px;font-weight:600;color:#eef2f7;">AH Scanner Import</div>
+          <span style="font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:#3a3018;color:#ffd166;border:1px solid #5a4a28;">PRO</span>
+        </div>
         <div style="font-size:13px;color:#8d99ab;">Run ${cmd('!scan')} in-game, then click Import AH Prices. Fast and accurate.</div>
       </div>
       <div style="padding:10px 14px;background:#1a2028;border:1px solid #2a3040;border-radius:8px;">
-        <div style="font-size:13px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Community Prices</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <div style="font-size:13px;font-weight:600;color:#eef2f7;">Community Prices</div>
+          <span style="font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:#3a3018;color:#ffd166;border:1px solid #5a4a28;">PRO</span>
+        </div>
         <div style="font-size:13px;color:#8d99ab;">Prices submitted by other players and verified by Ashkan are auto-filled for Pro users.</div>
       </div>
       <div style="padding:10px 14px;background:#1a2028;border:1px solid #2a3040;border-radius:8px;">
-        <div style="font-size:13px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Manual Entry</div>
-        <div style="font-size:13px;color:#8d99ab;">Click any price field to type it in directly. Good for one-off updates.</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <div style="font-size:13px;font-weight:600;color:#eef2f7;">Manual Entry</div>
+          <span style="font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:#0a2a1a;color:#86efac;border:1px solid #1a5a2a;">FREE</span>
+        </div>
+        <div style="font-size:13px;color:#8d99ab;">Click any price field to type it in directly. This is the free path — works for all users.</div>
       </div>
     </div>
 
@@ -239,12 +279,18 @@ function renderPricesStorage() {
 
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
       <div style="padding:10px 14px;background:#1a2028;border:1px solid #2a3040;border-radius:8px;">
-        <div style="font-size:13px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Inventory Scanner Import</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <div style="font-size:13px;font-weight:600;color:#eef2f7;">Inventory Scanner Import</div>
+          <span style="font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:#3a3018;color:#ffd166;border:1px solid #5a4a28;">PRO</span>
+        </div>
         <div style="font-size:13px;color:#8d99ab;">Run ${cmd('!scanstart')} in-game, then click Import Inventory. Replaces all quantities with the scan results.</div>
       </div>
       <div style="padding:10px 14px;background:#1a2028;border:1px solid #2a3040;border-radius:8px;">
-        <div style="font-size:13px;font-weight:600;color:#eef2f7;margin-bottom:3px;">Manual Entry</div>
-        <div style="font-size:13px;color:#8d99ab;">Click any quantity field to type it in. Useful if you\'ve crafted or sold items since your last scan.</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <div style="font-size:13px;font-weight:600;color:#eef2f7;">Manual Entry</div>
+          <span style="font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;background:#0a2a1a;color:#86efac;border:1px solid #1a5a2a;">FREE</span>
+        </div>
+        <div style="font-size:13px;color:#8d99ab;">Click any quantity field to type it in. Works for all users.</div>
       </div>
     </div>
 
@@ -329,9 +375,11 @@ function renderArcPoints() {
           color:#566174;margin-bottom:8px;">How to earn</div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           ${[
-            ['📖 Submit a wiki guide',   '+25 pts', '#86efac'],
-            ['⚗ Submit a recipe',       '+5 pts',  '#93c5fd'],
-            ['💰 Submit an AH price',   '+1 pt',   '#8d99ab'],
+            ['📖 Submit a wiki guide',      '+25 pts',  '#86efac'],
+            ['⚗ Submit a recipe',          '+5 pts',   '#93c5fd'],
+            ['💰 Submit an AH price',      '+1 pt',    '#8d99ab'],
+            ['🔥 7-day daily scan streak', '+25 pts',  '#fb923c'],
+            ['💥 30-day scan streak',      '+100 pts', '#f97316'],
           ].map(([action, pts, color]) => `
             <div style="display:flex;justify-content:space-between;align-items:center;
               padding:8px 12px;background:#1a2028;border:1px solid #2a3040;border-radius:8px;">
@@ -430,7 +478,7 @@ function renderPro() {
     <div style="display:flex;flex-direction:column;gap:8px;">
       <div style="padding:10px 14px;background:#1a1a0a;border:1px solid #3a3018;border-radius:8px;">
         <div style="font-size:13px;font-weight:600;color:#ffd166;margin-bottom:3px;">$5.99/month</div>
-        <div style="font-size:13px;color:#8d99ab;">Monthly subscription with a 7-day free trial. Payment system coming soon.</div>
+        <div style="font-size:13px;color:#8d99ab;">Monthly subscription with a 7-day free trial. Subscribe from the Home page.</div>
       </div>
       <div style="padding:10px 14px;background:#0a1a1a;border:1px solid #1a3a3a;border-radius:8px;">
         <div style="font-size:13px;font-weight:600;color:#86efac;margin-bottom:3px;">2,000 In-Game Credits</div>

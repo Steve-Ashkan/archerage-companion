@@ -1,6 +1,23 @@
 // ArcheRage Event Schedule Data
-// Times are in server time (America/New_York)
-// Sources: wiki.archerage.to/schedules/events + sadly.io
+// Source: AR Event Timers schedule supplied by Ashkan.
+// All times and days below are UTC, matching the original timer source.
+
+const DAYS = {
+  sun: 'Sunday',
+  mon: 'Monday',
+  tue: 'Tuesday',
+  wed: 'Wednesday',
+  thu: 'Thursday',
+  fri: 'Friday',
+  sat: 'Saturday',
+};
+
+function getCurrentSiegeName() {
+  const rotations = ['Heedmar', 'Nuimari', 'Marcala', 'Calmlands'];
+  const anchorMs = Date.UTC(2025, 0, 4, 2, 0);
+  const weeksSince = Math.floor((Date.now() - anchorMs) / (7 * 24 * 3600000));
+  return rotations[((weeksSince % rotations.length) + rotations.length) % rotations.length];
+}
 
 export const eventCategories = [
   {
@@ -8,114 +25,158 @@ export const eventCategories = [
     name: 'Rifts',
     icon: '🌀',
     events: [
-      { name: 'Crimson Rift (Auroria)',                    times: ['00:20','04:20','08:20','12:20','16:20','20:20'], days: 'Daily' },
-      { name: 'Crimson Rift (Ynystere / Cinderstone Moor)', times: ['03:20','07:20','11:20','15:20','19:20','23:20'], days: 'Daily' },
-      { name: 'Grimghast Rift (Ynystere / Cinderstone Moor)', times: ['01:21','05:21','09:21','13:21','17:21','21:21'], days: 'Daily' },
-      { name: 'Hiram Rift',                                times: ['00:50','04:50','08:50','12:50','16:50','20:50'], days: 'Daily' },
-      { name: 'Oblivion Rift',                             times: ['01:40','03:40','05:40','07:40','09:40','11:40','13:40','15:40','17:40','19:40','21:40','23:40'], days: 'Daily' },
-      { name: 'Clockwork Rebellion',                       times: ['01:40','03:40','05:40','07:40','09:40','11:40','13:40','15:40','17:40','19:40','21:40','23:40'], days: 'Daily' },
-      { name: 'Hasla Zombie Apocalypse',                   times: ['12:00','19:00'], days: 'Daily' },
-      { name: 'Hasla Zombie Apocalypse (Novice)',           times: ['18:00'], days: ['Sunday','Monday','Tuesday','Wednesday'] },
-      { name: 'Lusca Awakening',                           times: ['15:30','20:00'], days: 'Daily' },
-    ]
+      { name: 'Crimson Rift', times: ['00:20', '04:20', '08:20', '12:20', '16:20', '20:20'], days: 'Daily' },
+      { name: 'Sungold Crimson Rift', times: ['01:20', '05:20', '09:20', '13:20', '17:20', '21:20'], days: 'Daily' },
+      { name: 'Hiram Rift', times: ['01:50', '05:50', '09:50', '13:50', '17:50', '21:50'], days: 'Daily' },
+      { name: 'Grimghast Rift', times: ['02:20', '06:20', '10:20', '14:20', '18:20', '22:20'], days: 'Daily' },
+      { name: 'DS Ocleera Rift', times: ['04:00', '16:00'], days: 'Daily' },
+      { name: 'Hasla 2 Rifts', times: ['00:00'], days: 'Daily' },
+      { name: 'Hasla 1 Rift', times: ['17:00'], days: 'Daily' },
+      { name: 'Jadegale Hasla Rift', times: ['23:00'], days: 'Daily' },
+    ],
   },
+
   {
     id: 'instances',
     name: 'Instances',
     icon: '⚔️',
     events: [
-      { name: 'Kadum',               times: ['06:30','10:00','19:00'], days: ['Tuesday','Saturday','Sunday'] },
-      { name: 'Golden Plains Battle', times: ['07:00','11:30','21:00'], days: 'Daily' },
-      { name: 'The Fall of Hiram City', times: ['07:00','17:00'],      days: ['Friday','Sunday'] },
-      { name: "Red Dragon's Keep",   times: ['06:30','10:00','19:00'], days: ['Sunday','Monday','Wednesday'] },
-    ]
+      { name: 'Halcyona War', times: ['12:00'], days: 'Daily' },
+      { name: 'Halcyona War', times: ['02:00', '18:00'], days: [DAYS.tue, DAYS.wed, DAYS.thu, DAYS.fri, DAYS.sat] },
+      { name: 'Halcyona War', times: ['02:30', '16:30'], days: [DAYS.sun, DAYS.mon] },
+      { name: 'Red Dragon', times: ['00:00'], days: [DAYS.mon, DAYS.tue, DAYS.thu, DAYS.sat] },
+      { name: 'Red Dragon', times: ['11:30', '15:00'], days: [DAYS.sun, DAYS.mon, DAYS.wed, DAYS.fri] },
+      { name: 'Kadum', times: ['00:00'], days: [DAYS.sun, DAYS.mon, DAYS.wed, DAYS.fri] },
+      { name: 'Kadum', times: ['11:30', '15:00'], days: [DAYS.sun, DAYS.tue, DAYS.thu, DAYS.sat] },
+      { name: 'Noryette Arena', times: ['03:30', '20:30', '22:30'], days: 'Daily' },
+      { name: 'Dimensional Raid', times: ['00:30', '02:30'], days: [DAYS.sun, DAYS.mon] },
+      { name: 'Dimensional Raid', times: ['10:30', '19:30', '22:30'], days: [DAYS.sun, DAYS.sat] },
+      { name: 'Fall of Hiram', times: ['12:00'], days: [DAYS.fri] },
+      { name: 'Fall of Hiram', times: ['22:00'], days: [DAYS.sun] },
+    ],
   },
+
   {
     id: 'world_bosses',
     name: 'World Bosses',
     icon: '💀',
     events: [
-      { name: 'Jola, Meina & Glenn', times: ['02:20','06:20','10:20','14:20','18:20','22:20'], days: 'Daily' },
-      { name: 'Leviathan',           times: ['19:05'], days: ['Monday','Wednesday','Friday'] },
-      { name: 'Kraken',              times: ['17:30'], days: ['Tuesday','Saturday'] },
-      { name: 'Kraken',              times: ['09:30'], days: ['Sunday'] },
-      { name: 'Black Dragon',        times: ['16:00'], days: ['Saturday'] },
-      { name: 'Black Dragon',        times: ['08:00'], days: ['Sunday'] },
-      { name: 'Black Dragon',        times: ['19:00'], days: ['Tuesday'] },
-      { name: 'Charybdis',           times: ['20:30'], days: ['Thursday','Sunday'] },
-      { name: 'Anthalon (Garden)',   times: ['20:00'], days: ['Wednesday','Saturday'] },
-      { name: 'Anthalon (Garden)',   times: ['12:00'], days: ['Sunday'] },
-    ]
+      { name: 'Jola, Meina & Glenn', times: ['03:20', '07:20', '11:20', '15:20', '19:20', '23:20'], days: 'Daily' },
+      { name: 'Kraken', times: ['14:30'], days: [DAYS.sun] },
+      { name: 'Kraken', times: ['22:30'], days: [DAYS.tue, DAYS.sat] },
+      { name: 'Black Dragon', times: ['00:00'], days: [DAYS.wed] },
+      { name: 'Black Dragon', times: ['13:00'], days: [DAYS.sun] },
+      { name: 'Black Dragon', times: ['21:00'], days: [DAYS.sat] },
+      { name: 'Charybdis', times: ['01:30'], days: [DAYS.mon, DAYS.fri] },
+      { name: 'Leviathan', times: ['00:05'], days: [DAYS.tue, DAYS.thu, DAYS.sat] },
+      { name: 'DGS West Spawn', times: ['01:00'], days: [DAYS.mon, DAYS.thu] },
+      { name: 'DGS East Spawn', times: ['01:00'], days: [DAYS.tue, DAYS.sat] },
+      { name: 'Garden Anthalon', times: ['01:00'], days: [DAYS.sun, DAYS.thu] },
+      { name: 'Garden Anthalon', times: ['17:00'], days: [DAYS.sun] },
+      { name: 'Aragog', times: ['01:30'], days: [DAYS.mon, DAYS.sat] },
+      { name: 'Aragog', times: ['15:30'], days: [DAYS.sun, DAYS.fri] },
+      { name: 'Sea Spirit General', times: ['02:30'], days: [DAYS.sun, DAYS.thu] },
+      { name: 'Sea Spirit General', times: ['17:30'], days: [DAYS.wed, DAYS.sat] },
+      { name: 'Harbinger in Peace', times: ['02:30'], days: [DAYS.tue, DAYS.sat] },
+      { name: 'Harbinger in War', times: ['17:30'], days: [DAYS.mon, DAYS.fri] },
+      { name: 'Kraken Cultist', times: ['18:30', '23:00'], days: [DAYS.tue, DAYS.thu, DAYS.sat] },
+    ],
   },
+
   {
-    id: 'custom_events',
-    name: 'Custom Events',
-    icon: '🎉',
+    id: 'world_events',
+    name: 'World Events',
+    icon: '🗺️',
     events: [
-      { name: 'The Fishers Day!',        times: ['23:00'], days: ['Monday','Friday'] },
-      { name: 'Treasures Hunter Day!',   times: ['23:00'], days: ['Tuesday'] },
-      { name: 'The Merchants Day!',      times: ['23:00'], days: ['Thursday','Friday','Sunday'] },
-      { name: 'Relentless Dragons Hunt', times: ['13:00'], days: ['Saturday'] },
-      { name: 'Gladiators Tournament',   times: ['15:00'], days: ['Sunday'] },
-      { name: 'Wonderland Races',        times: ['18:00'], days: ['Monday'] },
-    ]
+      { name: 'Lusca', times: ['01:00', '20:30'], days: 'Daily' },
+      { name: 'Abyss Attack', times: ['00:30'], days: [DAYS.sun, DAYS.wed, DAYS.fri] },
+      { name: 'Abyss Attack', times: ['20:00'], days: [DAYS.tue, DAYS.thu, DAYS.sat] },
+      { name: 'Akasch Quests', times: ['01:36'], days: [DAYS.sun, DAYS.tue] },
+      { name: 'Akasch Quests', times: ['12:36', '20:36'], days: [DAYS.mon, DAYS.sat] },
+      { name: 'Akasch Mobs', times: ['01:51'], days: [DAYS.sun, DAYS.tue] },
+      { name: 'Akasch Mobs', times: ['12:51', '20:51'], days: [DAYS.mon, DAYS.sat] },
+      { name: 'Guardian Scramble', times: ['01:00'], days: [DAYS.mon, DAYS.wed] },
+      { name: 'Guardian Scramble', times: ['13:00'], days: [DAYS.sun, DAYS.tue] },
+    ],
   },
-  {
-    id: 'custom_bosses',
-    name: 'Custom Bosses',
-    icon: '👹',
-    events: [
-      { name: 'Sea Spirit General',  times: ['23:00'], days: ['Tuesday','Friday'] },
-      { name: 'Sea Spirit General',  times: ['12:30'], days: ['Wednesday','Saturday'] },
-      { name: 'Aragog',              times: ['10:30','20:30'], days: ['Friday','Sunday'] },
-      { name: 'Harbinger',           times: ['12:30'], days: ['Monday','Friday'] },
-      { name: 'Harbinger',           times: ['23:00'], days: ['Sunday','Thursday'] },
-    ]
-  },
-  {
-    id: 'pvp',
-    name: 'PvP Events',
-    icon: '🏹',
-    events: [
-      { name: 'Abyssal Attack',     times: ['14:59','19:29'], days: ['Tuesday','Thursday','Saturday'] },
-      { name: 'Guardian Scramble',  times: ['08:00','20:00'], days: ['Sunday','Tuesday'] },
-    ]
-  },
+
   {
     id: 'war_zones',
     name: 'War Zones',
     icon: '🏰',
     events: [
-      { name: 'Garden of the Gods', times: ['00:00','04:00','08:00','12:00','16:00','20:00'], days: 'Daily' },
-      { name: 'Diamond Shores',     times: ['02:00','08:00','14:00','20:00'],                 days: 'Daily' },
-      { name: 'Akasch Invasion',    times: ['07:30','15:30','20:30'], days: ['Saturday','Monday'] },
-    ]
+      { name: 'Garden War', times: ['01:00', '05:00', '09:00', '13:00', '17:00', '21:00'], days: 'Daily' },
+      { name: 'DS War', times: ['05:00', '11:00', '17:00', '23:00'], days: 'Daily' },
+    ],
   },
+
+  {
+    id: 'castle',
+    name: 'Castle Siege',
+    icon: '🏯',
+    events: [
+      { name: 'Siege Commander Apply', times: ['16:00'], days: [DAYS.fri] },
+      { name: 'Siege Raid Apply', times: ['00:00'], days: [DAYS.sat] },
+      { name: `Castle Siege - ${getCurrentSiegeName()}`, times: ['01:00'], days: [DAYS.sat] },
+      { name: 'Castle Transport', times: ['04:00'], days: [DAYS.wed] },
+    ],
+  },
+
   {
     id: 'wonderland',
     name: 'Wonderland',
     icon: '🎪',
     events: [
-      { name: 'Miraculous Races',    times: ['02:00','08:00','14:00','20:00'], days: 'Daily' },
-      { name: 'Boss Waking Nightmare', times: ['13:30','21:30'],              days: 'Daily' },
-      { name: 'Wonderland Treasure', times: ['15:55'], days: ['Wednesday'] },
-      { name: 'Wonderland Treasure', times: ['18:25'], days: ['Saturday'] },
-    ]
+      { name: 'Wonderland Boss', times: ['02:30', '18:30'], days: 'Daily' },
+      { name: 'Wonderland Miraculous Races', times: ['01:00', '07:00', '13:00', '19:00'], days: 'Daily' },
+      { name: 'Wonderland Treasure', times: ['21:00'], days: [DAYS.wed] },
+      { name: 'Wonderland Treasure', times: ['23:30'], days: [DAYS.sat] },
+    ],
   },
+
+  {
+    id: 'custom_events',
+    name: 'Custom Events',
+    icon: '🎉',
+    events: [
+      { name: 'Merchants Day (Drag Essence Packs)', times: ['04:00'], days: [DAYS.fri] },
+      { name: 'Merchants Day (Onyx Packs)', times: ['04:00'], days: [DAYS.mon] },
+      { name: 'Merchants Day (Land Packs)', times: ['04:00'], days: [DAYS.sat] },
+      { name: 'Treasures Hunter Day', times: ['04:00'], days: [DAYS.wed] },
+      { name: 'Fishing Day', times: ['04:00'], days: [DAYS.tue, DAYS.sat] },
+      { name: 'GM Dragon (maybe)', times: ['18:00'], days: [DAYS.sat] },
+      { name: 'GM Wonderland Races (maybe)', times: ['23:00'], days: [DAYS.mon] },
+      { name: 'GM Hide & Seek (maybe)', times: ['14:00'], days: [DAYS.sat] },
+      { name: 'GM Raging Tank (maybe)', times: ['18:00'], days: [DAYS.sun] },
+    ],
+  },
+
   {
     id: 'other',
     name: 'Other Events',
     icon: '📅',
     events: [
-      { name: 'Mirage Isle Fish-Fest', times: ['11:00'], days: ['Saturday'] },
-      { name: 'Language Instructor',   times: ['03:00','07:00','11:00','15:00','19:00','23:00'], days: 'Daily' },
-      { name: 'Daily Reset',           times: ['23:00'], days: 'Daily' },
-      { name: 'Weekly Reset',          times: ['23:00'], days: ['Sunday'] },
-    ]
+      { name: 'Exile Language Tutor', times: ['01:10', '05:10', '09:10', '13:10', '17:10', '21:10'], days: 'Daily' },
+      { name: 'Ayanad Merchant', times: ['16:00', '22:00'], days: 'Daily' },
+      { name: 'Evenbard', times: ['02:00', '06:00', '10:00', '14:00', '18:00', '22:00'], days: 'Daily' },
+      { name: 'Hero Nui Reset', times: ['04:00'], days: [DAYS.sun] },
+      { name: 'Faction Activity Reset', times: ['04:00'], days: [DAYS.sun] },
+      { name: 'Daily Reset', times: ['04:00'], days: [DAYS.mon, DAYS.tue, DAYS.wed, DAYS.thu, DAYS.fri, DAYS.sat] },
+      { name: 'Weekly Reset', times: ['04:00'], days: [DAYS.sun] },
+      { name: 'Server Maintenance', times: ['11:00'], days: [DAYS.tue] },
+    ],
+  },
+
+  {
+    id: 'festival',
+    name: 'Festival',
+    icon: '🎊',
+    events: [
+      { name: 'Gigantic Honeybee Festival', times: ['04:00', '18:00', '23:00'], days: 'Daily' },
+    ],
   },
 ];
 
-// Flat list for backwards compatibility
 export const eventData = {
-  serverEvents: eventCategories.flatMap(cat => cat.events)
+  serverEvents: eventCategories.flatMap((cat) => cat.events),
 };

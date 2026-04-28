@@ -3,7 +3,7 @@
 // Fill in the placeholder values when Ashkan returns with credentials.
 
 export const CONFIG = {
-  version: "1.0.0",
+  version: "1.6.0",
 
   // ── Backend ───────────────────────────────────────────────────────────────
   // Set API_BASE and flip AUTH_ENABLED once the backend is live.

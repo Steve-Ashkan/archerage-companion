@@ -14,18 +14,18 @@ ADDON:ImportAPI(API_TYPE.UNIT.id)
 ADDON:ImportAPI(API_TYPE.MAP.id)
 ADDON:ImportAPI(API_TYPE.AUCTION.id)
 
--- ─── PATHS ────────────────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- PATHS ----------------------------------------------------------------
 local OUTPUT_FILE     = "../Documents/Addon/ahscanner/ah_prices.csv"
 local SCAN_ITEMS_FILE = "../Documents/Addon/ahscanner/scan_items.csv"
 
--- ─── CONSTANTS ───────────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- CONSTANTS ----------------------------------------------------------------
 local SEARCH_COOLDOWN  = 1.2     -- seconds between AH searches
 local ELLIPSIS_MS      = 400     -- ms between loading dot updates
 local SEARCH_TIMEOUT   = 5       -- seconds before giving up on one item
 local DEFAULT_MAX_AGE  = 3       -- days before a price is considered stale
 local SECONDS_PER_DAY  = 86400
 
--- ─── STATE ───────────────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- STATE ----------------------------------------------------------------
 local scanResults      = {}   -- item -> { price, timestamp } for newly scanned
 local savedPrices      = {}   -- item -> { price, timestamp } loaded from CSV
 local scanQueue        = {}   -- items queued for scanning
@@ -40,7 +40,7 @@ local ellipsisState    = 0
 local maxAgeDays       = DEFAULT_MAX_AGE  -- can be changed with !scanage N
 local forceFull        = false            -- set true by !scanfull
 
--- ─── WIDGETS ─────────────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- WIDGETS ----------------------------------------------------------------
 local updaterWidget     = nil
 local scanWindow        = nil
 local scanProgressLabel = nil
@@ -53,7 +53,7 @@ local scanStatusLabel   = nil
 local scanAgeLabel      = nil
 local stopBtn           = nil
 
--- ─── FALLBACK ITEM LIST ──────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- FALLBACK ITEM LIST ----------------------------------------------------------------
 local FALLBACK_ITEMS = {
     "Rice", "Corn", "Narcissus", "Azalea", "Clover", "Rose", "Red Coral", "Green Coral",
     "Peanut", "Wheat", "Oats", "Lotus", "Antler Coral", "Rosemary", "Pearl", "Rye",
@@ -79,14 +79,14 @@ local FALLBACK_ITEMS = {
     "Vehicle Upgrade Device"
 }
 
--- ─── CSV HELPERS ─────────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- CSV HELPERS ----------------------------------------------------------------
 
 local function LoadScanItems()
     local items = {}
     local f = io.open(SCAN_ITEMS_FILE, "r")
     if not f then
         X2Chat:DispatchChatMessage(CMF_SYSTEM,
-            "[AHScanner] scan_items.csv not found — using default list.")
+            "[AHScanner] scan_items.csv not found - using default list.")
         return nil
     end
     for line in f:lines() do
@@ -122,7 +122,7 @@ local function LoadSavedPrices()
             if #parts >= 2 then
                 local name      = parts[1]
                 local price     = tonumber(parts[2])
-                -- parts[3] is timestamp — may be missing in old 2-column files
+                -- parts[3] is timestamp - may be missing in old 2-column files
                 local timestamp = (parts[3] and tonumber(parts[3])) or 0
                 if name and name ~= "item_name" and price then
                     savedPrices[name] = { price = price, timestamp = timestamp }
@@ -155,7 +155,7 @@ local function WriteCSV()
 
     local n = 0
     for name, data in pairs(merged) do
-        -- Sanitize name — strip any carriage returns or commas
+        -- Sanitize name - strip any carriage returns or commas
         local safeName = tostring(name):gsub("\r", ""):gsub("\n", "")
         f:write(string.format("%s,%.4f,%d\n", safeName, data.price, data.timestamp))
         n = n + 1
@@ -164,7 +164,7 @@ local function WriteCSV()
     return n
 end
 
--- ─── AGE / FRESHNESS HELPERS ─────────────────────────────────────────────────
+-- ---------------------------------------------------------------- AGE / FRESHNESS HELPERS ----------------------------------------------------------------
 
 -- Returns true if the item was scanned within maxAgeDays
 local function IsRecent(itemName)
@@ -194,7 +194,7 @@ local function GetAgeString(itemName)
     end
 end
 
--- ─── PRICE / VARIANCE HELPERS ────────────────────────────────────────────────
+-- ---------------------------------------------------------------- PRICE / VARIANCE HELPERS ----------------------------------------------------------------
 
 local function CopperToGold(copper)
     return (tonumber(copper) or 0) / 10000
@@ -218,7 +218,7 @@ local function GetVariance(savedGold, newCopper)
     return pct, r, g, b
 end
 
--- ─── WINDOW UPDATE ───────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- WINDOW UPDATE ----------------------------------------------------------------
 
 local function UpdateWindow()
     if not scanWindow then return end
@@ -247,7 +247,7 @@ local function UpdateWindow()
         scanItemLabel:SetText(scanCurrentItem)
         scanItemLabel.style:SetColor(1, 1, 1, 1)
     else
-        scanItemLabel:SetText("—")
+        scanItemLabel:SetText("-")
         scanItemLabel.style:SetColor(0.5, 0.5, 0.5, 1)
     end
 
@@ -279,7 +279,7 @@ local function UpdateWindow()
         scanNewLabel.style:SetColor(0.2, 1.0, 0.4, 1)
         local pct, r, g, b = GetVariance(savedGold, newCopper)
         if pct then
-            local arrow = pct > 0 and "▲" or "▼"
+            local arrow = pct > 0 and "+" or "-"
             scanVarianceLabel:SetText(string.format(
                 "Change:  %s %.1f%%", arrow, math.abs(pct)))
             scanVarianceLabel.style:SetColor(r, g, b, 1)
@@ -288,9 +288,9 @@ local function UpdateWindow()
             scanVarianceLabel.style:SetColor(0.4, 0.4, 0.4, 1)
         end
     else
-        scanNewLabel:SetText("AH Now:  —")
+        scanNewLabel:SetText("AH Now:  -")
         scanNewLabel.style:SetColor(0.4, 0.4, 0.4, 1)
-        scanVarianceLabel:SetText("Change:  —")
+        scanVarianceLabel:SetText("Change:  -")
         scanVarianceLabel.style:SetColor(0.4, 0.4, 0.4, 1)
     end
 end
@@ -301,7 +301,7 @@ local function SetStatus(text, r, g, b)
     scanStatusLabel.style:SetColor(r or 0.7, g or 0.7, b or 0.7, 1)
 end
 
--- ─── SCAN FLOW ───────────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- SCAN FLOW ----------------------------------------------------------------
 
 local function SearchCurrentItem()
     if not scanCurrentItem then return end
@@ -319,7 +319,7 @@ local function AdvanceToNext()
         local n = WriteCSV()
         local skipped = #skippedItems
         X2Chat:DispatchChatMessage(CMF_SYSTEM, string.format(
-            "[AHScanner] ✓ Complete! %d scanned, %d skipped (fresh), %d total saved.",
+            "[AHScanner] OK Complete! %d scanned, %d skipped (fresh), %d total saved.",
             #scanList, skipped, n))
         scanActive = false
         scanCurrentItem = nil
@@ -360,7 +360,7 @@ local function StartScan(fullScan)
     -- Load item list
     local items = LoadScanItems() or FALLBACK_ITEMS
 
-    -- Build queue — skip recently scanned items unless full scan
+    -- Build queue - skip recently scanned items unless full scan
     scanResults    = {}
     scanQueue      = {}
     scanList       = {}
@@ -406,7 +406,7 @@ local function StartScan(fullScan)
     SearchCurrentItem()
 end
 
--- ─── AUCTION RESULT EVENT ────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- AUCTION RESULT EVENT ----------------------------------------------------------------
 
 local function OnAuctionItemSearched()
     if not scanActive or not waitingForResult then return end
@@ -452,7 +452,7 @@ local function OnAuctionItemSearched()
     AdvanceToNext()
 end
 
--- ─── OnUpdate TIMER ──────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- OnUpdate TIMER ----------------------------------------------------------------
 
 local function OnUpdaterUpdate(self, dt)
     if not scanActive then return end
@@ -469,7 +469,7 @@ local function OnUpdaterUpdate(self, dt)
         local elapsed = os.time() - lastSearchTime
         if elapsed >= SEARCH_TIMEOUT then
             X2Chat:DispatchChatMessage(CMF_SYSTEM,
-                "[AHScanner] Timeout: " .. (scanCurrentItem or "?") .. " — skipping")
+                "[AHScanner] Timeout: " .. (scanCurrentItem or "?") .. " - skipping")
             waitingForResult = false
             AdvanceToNext()
         end
@@ -485,7 +485,7 @@ local function OnUpdaterUpdate(self, dt)
     end
 end
 
--- ─── WINDOW BUILDER ──────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- WINDOW BUILDER ----------------------------------------------------------------
 
 local function BuildScanWindow()
     local W, H = 360, 290
@@ -519,19 +519,19 @@ local function BuildScanWindow()
 
     -- Divider
     local div1 = scanWindow:CreateChildWidget("label", "ahsDiv1", 0, false)
-    div1:SetText("──────────────────────────────────")
+    div1:SetText("----------------------------------------------------------------")
     div1:AddAnchor("TOP", scanWindow, 0, 66)
     div1.style:SetAlign(ALIGN_CENTER)
     div1.style:SetColor(0.2, 0.2, 0.2, 1)
 
     -- Current item name
     scanItemLabel = scanWindow:CreateChildWidget("label", "ahsItem", 0, false)
-    scanItemLabel:SetText("—")
+    scanItemLabel:SetText("-")
     scanItemLabel:AddAnchor("TOP", scanWindow, 0, 78)
     scanItemLabel.style:SetAlign(ALIGN_CENTER)
     scanItemLabel.style:SetColor(1, 1, 1, 1)
 
-    -- Status (Searching... / ✓ price / No listings)
+    -- Status (Searching... / OK price / No listings)
     scanStatusLabel = scanWindow:CreateChildWidget("label", "ahsStatus", 0, false)
     scanStatusLabel:SetText("")
     scanStatusLabel:AddAnchor("TOP", scanWindow, 0, 98)
@@ -540,7 +540,7 @@ local function BuildScanWindow()
 
     -- Divider
     local div2 = scanWindow:CreateChildWidget("label", "ahsDiv2", 0, false)
-    div2:SetText("──────────────────────────────────")
+    div2:SetText("----------------------------------------------------------------")
     div2:AddAnchor("TOP", scanWindow, 0, 116)
     div2.style:SetAlign(ALIGN_CENTER)
     div2.style:SetColor(0.2, 0.2, 0.2, 1)
@@ -554,28 +554,28 @@ local function BuildScanWindow()
 
     -- Saved price
     scanSavedLabel = scanWindow:CreateChildWidget("label", "ahsSaved", 0, false)
-    scanSavedLabel:SetText("Saved:   —")
+    scanSavedLabel:SetText("Saved:   -")
     scanSavedLabel:AddAnchor("TOP", scanWindow, 0, 146)
     scanSavedLabel.style:SetAlign(ALIGN_CENTER)
     scanSavedLabel.style:SetColor(0.7, 0.9, 1.0, 1)
 
     -- AH now
     scanNewLabel = scanWindow:CreateChildWidget("label", "ahsNew", 0, false)
-    scanNewLabel:SetText("AH Now:  —")
+    scanNewLabel:SetText("AH Now:  -")
     scanNewLabel:AddAnchor("TOP", scanWindow, 0, 164)
     scanNewLabel.style:SetAlign(ALIGN_CENTER)
     scanNewLabel.style:SetColor(0.4, 0.4, 0.4, 1)
 
     -- Variance
     scanVarianceLabel = scanWindow:CreateChildWidget("label", "ahsVariance", 0, false)
-    scanVarianceLabel:SetText("Change:  —")
+    scanVarianceLabel:SetText("Change:  -")
     scanVarianceLabel:AddAnchor("TOP", scanWindow, 0, 182)
     scanVarianceLabel.style:SetAlign(ALIGN_CENTER)
     scanVarianceLabel.style:SetColor(0.4, 0.4, 0.4, 1)
 
     -- Divider
     local div3 = scanWindow:CreateChildWidget("label", "ahsDiv3", 0, false)
-    div3:SetText("──────────────────────────────────")
+    div3:SetText("----------------------------------------------------------------")
     div3:AddAnchor("TOP", scanWindow, 0, 202)
     div3.style:SetAlign(ALIGN_CENTER)
     div3.style:SetColor(0.2, 0.2, 0.2, 1)
@@ -597,7 +597,7 @@ local function BuildScanWindow()
     scanWindow:Show(false)
 end
 
--- ─── ENTRY POINT ─────────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------- ENTRY POINT ----------------------------------------------------------------
 
 local function EnteredWorld()
 
@@ -664,7 +664,7 @@ local function EnteredWorld()
                 string.format("[AHScanner] Wrote %d prices to ah_prices.csv", n))
 
         elseif string.find(msg, "^!scanage%s+") then
-            -- !scanage 7  — change the freshness threshold
+            -- !scanage 7  - change the freshness threshold
             local days = tonumber(string.match(raw, "!scanage%s+(%d+)"))
             if days and days > 0 then
                 maxAgeDays = days
@@ -691,22 +691,22 @@ local function EnteredWorld()
                 end
             end
             X2Chat:DispatchChatMessage(CMF_SYSTEM, string.format(
-                "[AHScanner] Status: %d fresh (< %dd), %d stale, %d never scanned — %d total",
+                "[AHScanner] Status: %d fresh (< %dd), %d stale, %d never scanned - %d total",
                 fresh, maxAgeDays, stale, never, #allItems))
 
         elseif msg == "!scanhelp" then
             X2Chat:DispatchChatMessage(CMF_SYSTEM,
                 "[AHScanner] Commands:")
             X2Chat:DispatchChatMessage(CMF_SYSTEM,
-                "  !scan        — smart scan (skips items < " .. maxAgeDays .. " days old)")
+                "  !scan        - smart scan (skips items < " .. maxAgeDays .. " days old)")
             X2Chat:DispatchChatMessage(CMF_SYSTEM,
-                "  !scanfull    — force rescan everything")
+                "  !scanfull    - force rescan everything")
             X2Chat:DispatchChatMessage(CMF_SYSTEM,
-                "  !scanage N   — change skip threshold (e.g. !scanage 7)")
+                "  !scanage N   - change skip threshold (e.g. !scanage 7)")
             X2Chat:DispatchChatMessage(CMF_SYSTEM,
-                "  !scanstatus  — show fresh/stale/never counts")
+                "  !scanstatus  - show fresh/stale/never counts")
             X2Chat:DispatchChatMessage(CMF_SYSTEM,
-                "  !scanstop    — stop and save  |  !scanshow  — reopen window")
+                "  !scanstop    - stop and save  |  !scanshow  - reopen window")
         end
     end)
     chatListener:RegisterEvent("CHAT_MESSAGE")

@@ -356,6 +356,12 @@ ipcMain.handle('get-pending-price-items', async () => {
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
+ipcMain.handle('reject-pending-item', async (e, { itemName }) => {
+  try {
+    return await callAppApi('admin-reject-pending-item', { itemName });
+  } catch(e) { return { ok: false, error: e.message }; }
+});
+
 ipcMain.handle('get-addon-dir', () => ({
   ok: true, path: ADDON_DIR, exists: fs.existsSync(ADDON_DIR)
 }));

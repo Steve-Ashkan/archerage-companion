@@ -93,6 +93,7 @@ try {
     submitInventory:           (items)    => ipcRenderer.invoke('submit-inventory', items),
     submitAuthoritativePrices: (items)    => ipcRenderer.invoke('submit-authoritative-prices', items),
     getPendingPriceItems:      ()         => ipcRenderer.invoke('get-pending-price-items'),
+    rejectPendingItem:         (itemName) => ipcRenderer.invoke('reject-pending-item', { itemName }),
 
     // ── Stripe Checkout ───────────────────────────────────────────────────
     // Runs through main process — session token never exposed to renderer

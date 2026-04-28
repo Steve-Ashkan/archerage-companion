@@ -329,8 +329,8 @@ function renderSetEffects() {
         Collecting enough artifact levels across all three categories unlocks powerful set bonuses.
         The levels required are <strong>cumulative</strong> across all pieces.
       </p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex-wrap:wrap;">
-        <div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;flex-wrap:wrap;">
+        <div style="min-width:0;">
           <h3 style="margin-top:0;color:#93c5fd;">Level Requirements</h3>
           <div class="table-wrap">
             <table>
@@ -339,7 +339,7 @@ function renderSetEffects() {
             </table>
           </div>
         </div>
-        <div>
+        <div style="min-width:0;">
           <h3 style="margin-top:0;color:#93c5fd;">Bonuses</h3>
           <div class="table-wrap">
             <table>
@@ -463,21 +463,21 @@ function renderArtifactCard(artifact) {
 
       <div style="margin-top:16px;padding:14px 16px;background:#0f1923;border:1px solid #2a3a52;border-radius:10px;">
         <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Full Cost Summary</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+          <div style="min-width:0;">
             <div style="font-size:11px;color:#86efac;font-weight:600;margin-bottom:4px;">Per piece (No Essence)</div>
             <div style="font-size:13px;color:#cbd5e1;">${esc(artifact.summary.perPieceNo)}</div>
           </div>
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:11px;color:#93c5fd;font-weight:600;margin-bottom:4px;">Per piece (With Essence)</div>
             <div style="font-size:13px;color:#cbd5e1;">${esc(artifact.summary.perPieceWith)}</div>
           </div>
           ${artifact.summary.fullNo ? `
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:11px;color:#fcd34d;font-weight:600;margin-bottom:4px;">All pieces (No Essence)</div>
             <div style="font-size:13px;color:#cbd5e1;">${esc(artifact.summary.fullNo)}</div>
           </div>
-          <div>
+          <div style="min-width:0;">
             <div style="font-size:11px;color:#c4b5fd;font-weight:600;margin-bottom:4px;">All pieces (With Essence)</div>
             <div style="font-size:13px;color:#cbd5e1;">${esc(artifact.summary.fullWith)}</div>
           </div>` : ""}
@@ -538,14 +538,48 @@ export function renderPage() {
     </div>`;
 
   return `
-    <h1>Ipnysh Artifacts</h1>
-    ${nav}
-    ${renderWhereAmI()}
-    ${totalsNote}
-    ${renderSetEffects()}
-    ${renderUpgradeReference()}
-    ${renderArtifactCard(ARMOR_ARTIFACT)}
-    ${renderArtifactCard(WEAPON_ARTIFACT)}
-    ${renderArtifactCard(ACCESSORY_ARTIFACT)}
+    <div class="ipnysh-page">
+      <style>
+        .ipnysh-page,
+        .ipnysh-page * {
+          box-sizing: border-box;
+        }
+
+        .ipnysh-page .card {
+          max-width: 100%;
+          overflow: hidden;
+        }
+
+        .ipnysh-page .table-wrap {
+          max-width: 100%;
+          min-width: 0;
+        }
+
+        .ipnysh-page #ia-set-effects table,
+        .ipnysh-page #ia-quick-ref table {
+          min-width: 0;
+        }
+
+        .ipnysh-page td,
+        .ipnysh-page th {
+          overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 900px) {
+          .ipnysh-page #ia-set-effects > div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      </style>
+      <h1>Ipnysh Artifacts</h1>
+      ${nav}
+      ${renderWhereAmI()}
+      ${totalsNote}
+      ${renderSetEffects()}
+      ${renderUpgradeReference()}
+      ${renderArtifactCard(ARMOR_ARTIFACT)}
+      ${renderArtifactCard(WEAPON_ARTIFACT)}
+      ${renderArtifactCard(ACCESSORY_ARTIFACT)}
+    </div>
   `;
 }

@@ -51,6 +51,7 @@ function deleteCustomItem(name) {
 }
 
 const SEEDED_CUSTOM_ITEMS_KEY = "customItemsSeeded_v1";
+const STORAGE_TEST_SEED_KEY = "storageSeed100k_v1";
 const SEED_CUSTOM_ITEMS = [
   "Medicinal Powder", "Onyx Archeum", "Hibiscus", "Silver Lily",
   "Ginkgo Leaf", "Impatiens", "Crimson Petunia", "Bay Leaf", "Pansy", "Watermelon"
@@ -64,6 +65,18 @@ function seedCustomItems() {
   }
   saveCustomItems(data);
   localStorage.setItem(SEEDED_CUSTOM_ITEMS_KEY, "1");
+}
+
+function seedStorageForCraftTesting() {
+  if (localStorage.getItem(STORAGE_TEST_SEED_KEY)) return;
+
+  const itemNames = new Set([
+    ...getAllItemsWithCustom().map(row => row.item),
+    ...Object.keys(appState.storage)
+  ]);
+
+  itemNames.forEach(item => saveStorage(item, 100000));
+  localStorage.setItem(STORAGE_TEST_SEED_KEY, new Date().toISOString());
 }
 
 // Build a merged allItems list that includes custom items, applies overrides, sorted A-Z
@@ -413,9 +426,54 @@ function renderPriceStaleNotice(filtered) {
   `;
 }
 
+function getInventoryScanSummary() {
+  try {
+    const data = JSON.parse(localStorage.getItem("inventoryBreakdown") || "{}");
+    const scanData = data.data && typeof data.data === "object" ? data.data : {};
+    const items = Object.values(scanData);
+    const itemCount = Object.keys(scanData).length;
+    const totalQty = items.reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const scannedAt = data.importedAt ? new Date(data.importedAt) : null;
+
+    return {
+      itemCount,
+      totalQty,
+      label: itemCount
+        ? `${itemCount.toLocaleString()} items / ${totalQty.toLocaleString()} qty imported`
+        : "No inventory scan imported yet",
+      dateLabel: scannedAt && !Number.isNaN(scannedAt.getTime())
+        ? `Last scan: ${scannedAt.toLocaleString()}`
+        : "Last scan: none"
+    };
+  } catch {
+    return {
+      itemCount: 0,
+      totalQty: 0,
+      label: "No inventory scan imported yet",
+      dateLabel: "Last scan: none"
+    };
+  }
+}
+
+function renderActionCard({ tone, kicker, title, detail, meta, buttonHtml }) {
+  return `
+    <div class="ps-action-card ps-action-${tone}">
+      <div class="ps-action-copy">
+        <div class="ps-action-kicker">${kicker}</div>
+        <div class="ps-action-title">${title}</div>
+        <div class="ps-action-detail">${detail}</div>
+        ${meta ? `<div class="ps-action-meta">${meta}</div>` : ""}
+      </div>
+      <div class="ps-action-control">${buttonHtml}</div>
+    </div>
+  `;
+}
+
 export function renderPricesStoragePage() {
   seedCustomItems();
+  seedStorageForCraftTesting();
   const filtered = getVisibleItems();
+  const inventorySummary = getInventoryScanSummary();
 
   let totalStorage = 0;
   let pricedItems = 0;
@@ -608,7 +666,7 @@ export function renderPricesStoragePage() {
     <div class="card">
       <h2>Prices & Storage</h2>
 
-      <div class="filters">
+      <div class="prices-storage-topbar">
         <input
           id="pricesStorageSearch"
           type="text"
@@ -617,51 +675,111 @@ export function renderPricesStoragePage() {
           oninput="window.updateSearch(this.value, this.selectionStart)"
         >
         <button type="button" onclick="window.startPriceWizard()">Start Price Wizard</button>
-        ${isPro() ? `
-          <button type="button" onclick="window.triggerAHImport()" style="background:#1a3a1a; border-color:#2d6a2d; color:#86efac;">
-            📥 Import AH Prices
+      </div>
+
+      <div class="ps-workflow-panel">
+        <div class="ps-workflow-header">
+          <div>
+            <div class="ps-eyebrow">Scanner workflow</div>
+            <div class="ps-workflow-title">Keep prices and quantities in sync</div>
+          </div>
+          <div class="ps-workflow-stats">
+            <span>${filtered.length.toLocaleString()} visible items</span>
+            <span>${pricedItems.toLocaleString()} priced</span>
+            <span>${inventorySummary.itemCount.toLocaleString()} scanned</span>
+          </div>
+        </div>
+
+        <div class="ps-action-grid">
+          ${renderActionCard({
+            tone: "green",
+            kicker: "Run AH Scanner first",
+            title: "Import AH Prices",
+            detail: "Pulls ah_prices.csv into your local price list and refreshes item values.",
+            meta: "Best after !scan or !scanfull finishes in-game.",
+            buttonHtml: isPro() ? `
+              <button type="button" onclick="window.triggerAHImport()" class="ps-action-btn ps-btn-green">
+                Import AH Prices
+              </button>
+            ` : `
+              <button type="button" disabled class="ps-action-btn ps-btn-disabled"
+                title="Pro feature - upgrade to import AH prices">
+                Import AH Prices [PRO]
+              </button>
+            `
+          })}
+
+          ${renderActionCard({
+            tone: "purple",
+            kicker: "Run Inventory Scanner first",
+            title: "Import Inventory",
+            detail: "Replaces In Storage quantities with the latest scanner totals.",
+            meta: inventorySummary.dateLabel,
+            buttonHtml: `
+              <button type="button" onclick="window.triggerInventoryImport()" class="ps-action-btn ps-btn-purple" title="Import inventory quantities from InventoryScanner addon">
+                Import Inventory
+              </button>
+            `
+          })}
+
+          ${renderActionCard({
+            tone: "blue",
+            kicker: "After importing inventory",
+            title: "Export Scan List",
+            detail: "Writes scan_items.csv for AHScanner using the items you track here.",
+            meta: inventorySummary.label,
+            buttonHtml: `
+              <button type="button" onclick="window.exportScanItems()" class="ps-action-btn ps-btn-blue" title="Write scan_items.csv to addon folder for AHScanner">
+                Export Scan List
+              </button>
+            `
+          })}
+
+          ${renderActionCard({
+            tone: "red",
+            kicker: "Reset quantities only",
+            title: "Zero Storage",
+            detail: "Sets all In Storage quantities to 0 without touching your saved prices.",
+            meta: "Useful before rebuilding a fresh list.",
+            buttonHtml: `
+              <button type="button" onclick="window.zeroOutStorage()" class="ps-action-btn ps-btn-red" title="Set all In Storage quantities to 0">
+                Zero Storage
+              </button>
+            `
+          })}
+        </div>
+
+        <div class="ps-secondary-actions">
+          <button type="button" onclick="window.openAddItemModal()"
+            class="ps-secondary-btn"
+            ${isPro() ? "" : `title="Pro feature - upgrade to add custom items"`}>
+            Add Custom Item${isPro() ? "" : " [PRO]"}
           </button>
-        ` : `
-          <button type="button" disabled style="background:#1a1a1a; border-color:#2a2a2a; color:#3d4f64; cursor:not-allowed;"
-            title="Pro feature — upgrade to import AH prices">
-            📥 Import AH Prices [PRO]
-          </button>
-        `}
-        <button type="button" onclick="window.triggerInventoryImport()" style="background:#2a1a3a; border-color:#5a2d8a; color:#d8b4fe;" title="Import inventory quantities from InventoryScanner addon">
-          🎒 Import Inventory
-        </button>
-        <button type="button" onclick="window.exportScanItems()" style="background:#1a2a3a; border-color:#2d5a8a; color:#93c5fd;" title="Write scan_items.csv to addon folder for AHScanner">
-          📤 Export Scan List
-        </button>
-        <button type="button" onclick="window.openAddItemModal()"
-          style="background:#1a2a3a; border-color:#2d4a6a; color:${isPro() ? '#93c5fd' : '#566174'};"
-          title="${isPro() ? '' : 'Pro feature — upgrade to add custom items'}">
-          ➕ Add Custom Item${isPro() ? '' : ' [PRO]'}
-        </button>
-        <button type="button" onclick="window.zeroOutStorage()"
-          style="background:#2a1a1a; border-color:#6a2d2d; color:#f87171;"
-          title="Set all In Storage quantities to 0">
-          🗑 Zero Storage
-        </button>
+          <span id="ahImportStatus" class="ps-status"></span>
+        </div>
+
         <input type="file" id="ahCsvInput" accept=".csv" style="display:none;" onchange="window.handleAHCsvFile(this)">
-        <span id="ahImportStatus" style="color:#86efac; font-size:13px; align-self:center;"></span>
         ${userHasRole('staff') ? `
-          <button type="button" id="syncCommunityBtn" onclick="window.syncCommunityPrices()"
-            style="background:#1a2a3a; border-color:#2d5a8a; color:#93c5fd;"
-            title="Force pull latest prices from the community database">
-            ☁ Force Sync
-          </button>
-          <span id="syncCommunityStatus" style="font-size:12px; color:#566174; align-self:center;">
-            ${getCommunityPricesAge() !== null ? `Last synced ${getCommunityPricesAge()}m ago` : 'Never synced'}
-          </span>
+          <div class="ps-admin-actions">
+            <button type="button" id="syncCommunityBtn" onclick="window.syncCommunityPrices()"
+              class="ps-secondary-btn"
+              title="Force pull latest prices from the community database">
+              Force Sync
+            </button>
+            <span id="syncCommunityStatus" class="ps-status">
+              ${getCommunityPricesAge() !== null ? `Last synced ${getCommunityPricesAge()}m ago` : 'Never synced'}
+            </span>
+          </div>
         ` : ''}
         ${userHasRole('dev') ? `
-          <button type="button" id="devPushPricesBtn" onclick="window.devPushAllPrices()"
-            style="background:#1a2a1a; border:1px solid #2a5a2a; color:#86efac;"
-            title="[DEV] Submit all local prices to Supabase">
-            ⬆ Dev: Push All Prices
-          </button>
-          <span id="devPushStatus" style="font-size:12px; color:#566174; align-self:center;"></span>
+          <div class="ps-admin-actions">
+            <button type="button" id="devPushPricesBtn" onclick="window.devPushAllPrices()"
+              class="ps-secondary-btn"
+              title="[DEV] Submit all local prices to Supabase">
+              Dev: Push All Prices
+            </button>
+            <span id="devPushStatus" class="ps-status"></span>
+          </div>
         ` : ''}
       </div>
 
@@ -1479,7 +1597,7 @@ function handleInventoryData(rawData, statusEl, character) {
   }));
 
   if (statusEl) {
-    statusEl.textContent = `✓ Imported ${updated} items (${added} new) — quantities added to Prices & Storage`;
+    statusEl.textContent = `✓ Imported ${updated} items (${added} new) — quantities replaced in Prices & Storage`;
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 5000);
   }
 

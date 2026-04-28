@@ -218,7 +218,8 @@ Deno.serve(async (req) => {
       }
       const { data, error } = await db.rpc('submit_price', { p_item_name: itemName, p_price: price });
       if (error) return json({ ok: false, error: error.message });
-      return json({ ok: true, result: data });
+      const { data: streakData } = await db.rpc('update_scan_streak', { p_discord_id: discord_id });
+      return json({ ok: true, result: data, streak: streakData });
     }
 
     if (action === 'submit-inventory') {
@@ -228,7 +229,8 @@ Deno.serve(async (req) => {
       }
       const { data, error } = await db.rpc('submit_inventory', { p_items: params.items });
       if (error) return json({ ok: false, error: error.message });
-      return json({ ok: true, result: data });
+      const { data: streakData } = await db.rpc('update_scan_streak', { p_discord_id: discord_id });
+      return json({ ok: true, result: data, streak: streakData });
     }
 
     if (action === 'submit-authoritative-price') {
@@ -252,6 +254,15 @@ Deno.serve(async (req) => {
       const { data, error } = await db.rpc('get_pending_price_items');
       if (error) return json({ ok: false, error: error.message });
       return json({ ok: true, items: data || [] });
+    }
+
+    if (action === 'admin-reject-pending-item') {
+      if (!hasRole(callerRole, 'dev')) return json({ ok: false, error: 'Requires dev role' }, 403);
+      const itemName = str(params.itemName, 200);
+      if (!itemName) return json({ ok: false, error: 'Invalid itemName' });
+      const { error } = await db.from('community_prices').delete().eq('item_name', itemName);
+      if (error) return json({ ok: false, error: error.message });
+      return json({ ok: true });
     }
 
     // ── Admin: user management ────────────────────────────────────────────────
@@ -403,12 +414,19 @@ Deno.serve(async (req) => {
     // ── ARC Points ────────────────────────────────────────────────────────────
 
     if (action === 'arc-get-my-points') {
-      const [balRes, lifeRes] = await Promise.all([
+      const [balRes, lifeRes, profileRes] = await Promise.all([
         db.rpc('get_my_points'),
         db.rpc('get_my_lifetime_points'),
+        db.from('profiles').select('current_streak, last_scan_date').eq('discord_id', discord_id).single(),
       ]);
       if (balRes.error) return json({ ok: false, error: balRes.error.message });
-      return json({ ok: true, points: balRes.data || 0, lifetimePoints: lifeRes.data || 0 });
+      return json({
+        ok: true,
+        points:         balRes.data || 0,
+        lifetimePoints: lifeRes.data || 0,
+        streak:         profileRes.data?.current_streak || 0,
+        lastScanDate:   profileRes.data?.last_scan_date || null,
+      });
     }
 
     if (action === 'arc-get-leaderboard') {

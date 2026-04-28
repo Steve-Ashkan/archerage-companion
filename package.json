@@ -1,12 +1,12 @@
 {
   "name": "archerage-companion",
-  "version": "1.5.5",
+  "version": "1.6.0",
   "description": "ArcheRage Companion — crafting calculators, events, wiki, prices and more.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "build:win": "electron-builder --win && node scripts/post-build-obfuscate.js",
+    "build:win": "electron-builder --win",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -32,6 +32,7 @@
       "owner": "Steve-Ashkan",
       "repo": "archerage-companion"
     },
+    "afterPack": "./scripts/post-build-obfuscate.js",
     "files": [
       "main.js",
       "preload.js",

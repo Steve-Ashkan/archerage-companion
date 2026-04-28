@@ -107,6 +107,203 @@ h1 {
   padding: 8px;
 }
 
+.prices-storage-topbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.prices-storage-topbar input {
+  min-width: 240px;
+  flex: 1 1 260px;
+  background: #1b2028;
+  color: #eef2f7;
+  border: 1px solid #485366;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.ps-workflow-panel {
+  background: #202733;
+  border: 1px solid #3b4658;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.ps-workflow-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.ps-eyebrow {
+  color: #8fc3ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.ps-workflow-title {
+  color: #f8fafc;
+  font-size: 16px;
+  font-weight: 800;
+  margin-top: 3px;
+}
+
+.ps-workflow-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  color: #aeb7c6;
+  font-size: 12px;
+}
+
+.ps-workflow-stats span {
+  background: #18202b;
+  border: 1px solid #344155;
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+
+.ps-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ps-action-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  min-height: 126px;
+  background: #1b222d;
+  border: 1px solid #354155;
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 13px;
+}
+
+.ps-action-green {
+  border-left-color: #4ade80;
+}
+
+.ps-action-purple {
+  border-left-color: #c084fc;
+}
+
+.ps-action-blue {
+  border-left-color: #60a5fa;
+}
+
+.ps-action-red {
+  border-left-color: #f87171;
+}
+
+.ps-action-copy {
+  min-width: 0;
+}
+
+.ps-action-kicker {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ps-action-title {
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+.ps-action-detail {
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.35;
+  margin-top: 6px;
+}
+
+.ps-action-meta {
+  color: #7f8ea3;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.ps-action-control {
+  flex: 0 0 145px;
+}
+
+.ps-action-btn,
+.ps-secondary-btn {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid;
+  color: #eef2f7;
+  font-weight: 800;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.ps-btn-green {
+  background: #17321f;
+  border-color: #2f7a43;
+  color: #86efac;
+}
+
+.ps-btn-purple {
+  background: #271638;
+  border-color: #6d35a0;
+  color: #d8b4fe;
+}
+
+.ps-btn-blue {
+  background: #172b42;
+  border-color: #2e5f96;
+  color: #93c5fd;
+}
+
+.ps-btn-red {
+  background: #351a1a;
+  border-color: #7a3333;
+  color: #fca5a5;
+}
+
+.ps-btn-disabled {
+  background: #171a20;
+  border-color: #2b323d;
+  color: #566174;
+  cursor: not-allowed;
+}
+
+.ps-secondary-actions,
+.ps-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ps-secondary-btn {
+  width: auto;
+  background: #172b42;
+  border-color: #2e5f96;
+  color: #93c5fd;
+}
+
+.ps-status {
+  color: #86efac;
+  font-size: 13px;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -434,6 +631,27 @@ body.tab-collapsed #floatingTopBtn {
 @media (max-width: 900px) {
   .summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ps-workflow-header {
+    flex-direction: column;
+  }
+
+  .ps-workflow-stats {
+    justify-content: flex-start;
+  }
+
+  .ps-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ps-action-card {
+    flex-direction: column;
+  }
+
+  .ps-action-control {
+    width: 100%;
+    flex-basis: auto;
   }
 }
 

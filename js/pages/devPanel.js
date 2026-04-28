@@ -191,7 +191,6 @@ export function renderPage() {
         <div class="dp-action-row">
           <button class="dp-btn success" onclick="window.devTestNotification()">Test Notification</button>
           <button class="dp-btn" onclick="window.devOpenAddonFolder()">Open Addon Folder</button>
-          <button class="dp-btn danger" onclick="window.devClearToken()">Clear Auth Token</button>
         </div>
       </div>
 
@@ -449,11 +448,12 @@ export function initDevPanel() {
     if (action === 'reject-flagged') window.adminRejectFlaggedPrice(btn.dataset.item);
   });
 
-  // Delegated handler for pending items "Add to Scan List" buttons
+  // Delegated handler for pending items buttons
   document.getElementById('dp-pending-wrap')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.dp-pending-add-btn');
-    if (!btn) return;
-    window.addPendingItemToScanList(btn, btn.dataset.itemName);
+    const addBtn = e.target.closest('.dp-pending-add-btn');
+    if (addBtn) { window.addPendingItemToScanList(addBtn, addBtn.dataset.itemName); return; }
+    const rejBtn = e.target.closest('.dp-pending-reject-btn');
+    if (rejBtn) window.rejectPendingItem(rejBtn, rejBtn.dataset.itemName);
   });
 
   // Delegated handler for wiki submission buttons (data-action)
@@ -700,6 +700,19 @@ window.addAllPendingToScanList = async function() {
   setTimeout(() => status.remove(), 3000);
 };
 
+window.rejectPendingItem = async function(btn, itemName) {
+  btn.disabled = true;
+  btn.textContent = 'Removing…';
+  const result = await window.electronAPI?.rejectPendingItem?.(itemName);
+  if (result?.ok) {
+    const row = btn.closest('tr[data-pending-item]');
+    if (row) row.remove();
+  } else {
+    btn.textContent = 'Failed';
+    btn.disabled = false;
+  }
+};
+
 window.addPendingItemToScanList = async function(btn, itemName) {
   btn.disabled = true;
   btn.textContent = 'Adding…';
@@ -725,10 +738,16 @@ function renderPendingPriceItems(items) {
       <td style="padding:10px 12px;color:#94a3b8;font-size:13px;">${escapeHtml(String(item.submission_count || 0))} users</td>
       <td style="padding:10px 12px;color:#566174;font-size:12px;">${item.last_updated ? new Date(item.last_updated).toLocaleDateString() : '—'}</td>
       <td style="padding:10px 12px;">
-        <button class="dp-btn success dp-pending-add-btn" style="padding:4px 12px;font-size:12px;"
-          data-item-name="${escapeHtml(item.item_name)}">
-          Add to Scan List
-        </button>
+        <div style="display:flex;gap:6px;">
+          <button class="dp-btn success dp-pending-add-btn" style="padding:4px 12px;font-size:12px;"
+            data-item-name="${escapeHtml(item.item_name)}">
+            Add to Scan List
+          </button>
+          <button class="dp-btn danger dp-pending-reject-btn" style="padding:4px 10px;font-size:12px;"
+            data-item-name="${escapeHtml(item.item_name)}">
+            Reject
+          </button>
+        </div>
       </td>
     </tr>
   `).join('');
@@ -1502,13 +1521,6 @@ window.devTestNotification = async function() {
 window.devOpenAddonFolder = async function() {
   if (window.electronAPI?.getAddonDir) {
     await window.electronAPI.getAddonDir();
-  }
-};
-
-window.devClearToken = async function() {
-  if (window.electronAPI?.clearToken) {
-    await window.electronAPI.clearToken();
-    alert('Auth token cleared. Refresh to apply.');
   }
 };
 

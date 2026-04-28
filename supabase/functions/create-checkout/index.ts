@@ -2,10 +2,11 @@
 // Caller identity comes from the verified session JWT — never the request body.
 
 import Stripe from 'https://esm.sh/stripe@14?target=deno';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ── JWT verification (same as app-api) ───────────────────────────────────────
 
-async function verifyToken(authHeader: string | null): Promise<{ discord_id: string } | null> {
+async function verifyToken(authHeader: string | null): Promise<{ discord_id: string; token_version?: number } | null> {
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
   try {
@@ -49,6 +50,30 @@ Deno.serve(async (req) => {
     const caller = await verifyToken(req.headers.get('authorization'));
     if (!caller?.discord_id) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const db = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+
+    if (typeof caller.token_version !== 'number') {
+      return new Response(JSON.stringify({ error: 'Session revoked, please sign in again' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: tv } = await db
+      .from('profiles')
+      .select('token_version')
+      .eq('discord_id', caller.discord_id)
+      .single();
+
+    if ((tv?.token_version ?? 1) !== caller.token_version) {
+      return new Response(JSON.stringify({ error: 'Session revoked, please sign in again' }), {
         status: 401, headers: { 'Content-Type': 'application/json' },
       });
     }

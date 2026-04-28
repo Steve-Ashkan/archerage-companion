@@ -17,8 +17,8 @@ const EARN_ACTIONS = [
   { action: 'Wiki article or guide approved',           points: 25,  icon: '📖' },
   { action: 'Recipe submitted & verified correct',      points: 5,   icon: '📜' },
   { action: 'Auction House price submission accepted',  points: 1,   icon: '💰' },
-  { action: '7-day daily scan streak',                  points: 25,  icon: '🔥', soon: true },
-  { action: '30-day daily scan streak (bonus)',         points: 100, icon: '💥', soon: true },
+  { action: '7-day daily scan streak',                  points: 25,  icon: '🔥' },
+  { action: '30-day daily scan streak (bonus)',         points: 100, icon: '💥' },
 ];
 
 const REWARDS = [
@@ -68,6 +68,8 @@ function effectiveCost(baseCost, userIsPro) {
 
 let _points         = 0;
 let _lifetimePoints = getCachedLifetimePoints();
+let _streak         = 0;
+let _lastScanDate   = null;
 let _history        = [];
 let _leaderboard    = [];
 let _lbLoaded       = false;
@@ -78,6 +80,8 @@ async function loadPoints() {
   if (r?.ok) {
     _points         = r.points;
     _lifetimePoints = r.lifetimePoints || 0;
+    _streak         = r.streak || 0;
+    _lastScanDate   = r.lastScanDate || null;
     cacheLifetimePoints(_lifetimePoints);
     window.renderCurrentPage?.();
   }
@@ -98,11 +102,73 @@ async function loadLeaderboard() {
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 
+function renderStreakCard(streak, lastScanDate) {
+  const today        = new Date().toISOString().slice(0, 10);
+  const scannedToday = lastScanDate === today;
+  const next7        = 7  - (streak % 7  || 7);
+  const next30       = 30 - (streak % 30 || 30);
+  const nextMilestone = streak % 30 === 0 && streak > 0 ? 30 : Math.min(next7, next30) === next30 ? 30 : 7;
+  const daysToNext    = nextMilestone === 30 ? next30 : next7;
+  const pct7          = Math.round(((streak % 7) / 7) * 100);
+
+  return `
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:${streak > 0 ? '14px' : '0'};">
+        <div>
+          <h3 style="margin:0 0 3px;">Daily Scan Streak</h3>
+          <p style="margin:0;font-size:12px;color:#566174;">
+            Submit AH prices or run an inventory scan each day to keep your streak alive.
+          </p>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="font-size:2.4em;line-height:1;">${streak >= 30 ? '💥' : streak >= 7 ? '🔥' : '🔥'}</div>
+          <div style="text-align:right;">
+            <div style="font-size:2em;font-weight:800;color:${streak >= 30 ? '#f97316' : streak >= 7 ? '#fb923c' : streak > 0 ? '#fbbf24' : '#394252'};line-height:1;">
+              ${streak}
+            </div>
+            <div style="font-size:11px;color:#566174;margin-top:2px;">day${streak !== 1 ? 's' : ''}</div>
+          </div>
+        </div>
+      </div>
+
+      ${streak > 0 ? `
+        <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:8px;padding:12px 14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:12px;color:#8d99ab;">
+              ${scannedToday
+                ? `<span style="color:#86efac;">✓ Scanned today</span>`
+                : `<span style="color:#fcd34d;">⚠ Scan today to keep your streak!</span>`
+              }
+            </span>
+            <span style="font-size:12px;color:#566174;">
+              Next milestone: <strong style="color:#ffd166;">+${nextMilestone === 30 ? '100' : '25'} pts</strong> in ${daysToNext} day${daysToNext !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div style="height:5px;background:#0d1b2a;border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:${pct7}%;background:#fb923c;border-radius:3px;transition:width 0.4s ease;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#394252;margin-top:4px;">
+            <span>${streak % 7 || (streak > 0 ? 7 : 0)} / 7 days</span>
+            <span style="color:#fb923c;">🔥 +25 pts at 7 days</span>
+          </div>
+        </div>
+      ` : `
+        <div style="background:#0f1923;border:1px dashed #1e2d3d;border-radius:8px;padding:14px;text-align:center;color:#394252;font-size:13px;">
+          Submit your first AH scan or inventory scan to start your streak.
+        </div>
+      `}
+    </div>
+  `;
+}
+
 export function renderPage() {
   const auth    = getAuth();
   const userPro = isPro();
   const points  = _points;
   const history = _history;
+
+  const streak      = _streak;
+  const lastScanDate = _lastScanDate;
 
   // Kick off async fetches — will re-render when done
   loadPoints();
@@ -170,6 +236,8 @@ export function renderPage() {
         </div>
       ` : ''}
     </div>
+
+    ${renderStreakCard(streak, lastScanDate)}
 
     <!-- How to Earn -->
     <div class="card" style="margin-bottom:16px;">
@@ -294,7 +362,17 @@ export function renderPage() {
            </div>`
         : `<div style="display:flex;flex-direction:column;gap:6px;">
             ${history.map(h => {
-              const label = { ah_price_accepted: 'AH Price Accepted', recipe_verified: 'Recipe Verified', wiki_approved: 'Wiki Article Approved' }[h.action_type] || h.action_type;
+              const ACTION_LABELS = {
+                ah_price_accepted: 'AH Price Accepted',
+                recipe_verified:   'Recipe Verified',
+                wiki_approved:     'Wiki Article Approved',
+                streak_7day:       `🔥 7-Day Streak${h.reference_id ? ` (${h.reference_id})` : ''}`,
+                streak_30day:      `💥 30-Day Streak${h.reference_id ? ` (${h.reference_id})` : ''}`,
+                redemption:        'Points Redeemed',
+                refund:            'Redemption Refunded',
+                admin_grant:       'Admin Grant',
+              };
+              const label = ACTION_LABELS[h.action_type] || h.action_type;
               const date  = h.created_at ? new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
               return `
                 <div style="display:flex;justify-content:space-between;align-items:center;
