@@ -712,37 +712,6 @@ ipcMain.handle('update-ign', async (event, { ign }) => {
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
-// ─── IPC: WIKI SUBMISSIONS ────────────────────────────────────────────────────
-
-ipcMain.handle('wiki-submit', async (event, { title, category, content, discordName, ign }) => {
-  try {
-    return await callAppApi('wiki-submit', { title, category, content, discordName, ign });
-  } catch(e) { return { ok: false, error: e.message }; }
-});
-
-ipcMain.handle('wiki-admin-get-submissions', async () => {
-  try {
-    return await callAppApi('wiki-admin-get-submissions');
-  } catch(e) { return { ok: false, error: e.message }; }
-});
-
-ipcMain.handle('wiki-admin-approve', async (event, { id }) => {
-  try {
-    return await callAppApi('wiki-admin-approve', { id });
-  } catch(e) { return { ok: false, error: e.message }; }
-});
-
-ipcMain.handle('wiki-admin-reject', async (event, { id, feedback }) => {
-  try {
-    return await callAppApi('wiki-admin-reject', { id, feedback });
-  } catch(e) { return { ok: false, error: e.message }; }
-});
-
-ipcMain.handle('wiki-get-news', async () => {
-  try {
-    return await callAppApi('get-approved-wiki');
-  } catch(e) { return { ok: false, error: e.message }; }
-});
 
 // ─── IPC: ARC POINTS ─────────────────────────────────────────────────────────
 

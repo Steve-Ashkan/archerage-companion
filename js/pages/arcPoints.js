@@ -12,7 +12,6 @@ function getIGN() { return localStorage.getItem(IGN_KEY) || ''; }
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 
 const EARN_ACTIONS = [
-  { action: 'Wiki article or guide approved',           points: 25,  icon: '📖' },
   { action: 'Recipe submitted & verified correct',      points: 5,   icon: '📜' },
   { action: 'Auction House price submission accepted',  points: 1,   icon: '💰' },
   { action: '7-day daily scan streak',                  points: 25,  icon: '🔥' },
@@ -370,7 +369,6 @@ export function renderPage() {
               const ACTION_LABELS = {
                 ah_price_accepted: 'AH Price Accepted',
                 recipe_verified:   'Recipe Verified',
-                wiki_approved:     'Wiki Article Approved',
                 streak_7day:       `🔥 7-Day Streak${h.reference_id ? ` (${h.reference_id})` : ''}`,
                 streak_30day:      `💥 30-Day Streak${h.reference_id ? ` (${h.reference_id})` : ''}`,
                 redemption:        'Points Redeemed',

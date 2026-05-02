@@ -128,14 +128,12 @@ function renderPaginatedSection(key) {
   const wrapByKey = {
     pending: 'dp-pending-wrap',
     flagged: 'dp-flagged-wrap',
-    wiki: 'dp-wiki-wrap',
     recipe: 'dp-recipe-wrap',
     redeem: 'dp-redeem-wrap',
   };
   const renderByKey = {
     pending: renderPendingPriceItems,
     flagged: renderFlaggedPricesTable,
-    wiki: renderWikiSubmissions,
     recipe: renderRecipeSubmissions,
     redeem: renderRedemptionQueue,
   };
@@ -455,17 +453,6 @@ export function renderPage() {
         </div>
       </div>
 
-      <!-- ── Wiki Submissions ────────────────────────────────────────────── -->
-      <div class="card dp-grid-full" style="${canReviewSubmissions(role) ? '' : 'display:none;'}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h3 style="margin:0;">Wiki Submissions</h3>
-          <button class="dp-btn" id="dp-wiki-refresh-btn" onclick="window.loadWikiSubmissions()">Refresh</button>
-        </div>
-        <div id="dp-wiki-wrap">
-          <div style="color:#566174;font-size:13px;padding:20px 0;">Loading…</div>
-        </div>
-      </div>
-
       <!-- ── Recipe Submissions ────────────────────────────────────────── -->
       <div class="card dp-grid-full" style="${canReviewSubmissions(role) ? '' : 'display:none;'}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -575,7 +562,7 @@ export function renderPage() {
           </div>
           <div>
             <div class="dp-label">Subject</div>
-            <input id="dp-mail-subject" type="text" placeholder="e.g. Wiki submission feedback"
+            <input id="dp-mail-subject" type="text" placeholder="e.g. Recipe submission feedback"
               style="width:100%;box-sizing:border-box;padding:8px 12px;background:#0f1923;
               border:1px solid #2a3a52;color:#eef2f7;border-radius:8px;font-size:13px;">
           </div>
@@ -690,7 +677,6 @@ export function initDevPanel() {
   if (canManagePendingPriceItems(role)) window.loadPendingPriceItems();
   if (canReviewFlaggedPrices(role)) window.loadFlaggedPrices();
   if (canReviewSubmissions(role)) {
-    window.loadWikiSubmissions();
     window.loadRecipeSubmissions();
   }
   if (canManageRedemptions(role)) window.loadRedemptionQueue();
@@ -737,14 +723,6 @@ export function initDevPanel() {
     if (rejBtn) window.rejectPendingItem(rejBtn, rejBtn.dataset.itemName);
   });
 
-  // Delegated handler for wiki submission buttons (data-action)
-  document.getElementById('dp-wiki-wrap')?.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const action = btn.dataset.action;
-    if (action === 'approve-wiki') window.adminApproveWiki(btn.dataset.id, btn.dataset.discord, btn.dataset.title);
-    if (action === 'reject-wiki')  window.adminOpenRejectWiki(btn.dataset.id, btn.dataset.discord, btn.dataset.title);
-  });
 
   // Delegated handler for recipe submission buttons (data-action)
   document.getElementById('dp-recipe-wrap')?.addEventListener('click', (e) => {
@@ -1212,151 +1190,6 @@ window.adminRejectFlaggedPrice = async function(itemName) {
     window.loadFlaggedPrices();
   } else {
     if (status) { status.style.color = '#f87171'; status.textContent = result?.error || 'Failed.'; }
-  }
-};
-
-// ─── WIKI SUBMISSIONS ─────────────────────────────────────────────────────────
-
-const STATUS_COLOR = { pending: '#fcd34d', approved: '#86efac', rejected: '#f87171' };
-
-function renderWikiSubmissions(items) {
-  if (!items?.length) return '<p style="color:#566174;font-size:13px;">No submissions yet.</p>';
-
-  const pageInfo = paginateItems('wiki', items);
-  const cards = pageInfo.items.map(s => {
-    const date  = s.created_at ? new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    const color = STATUS_COLOR[s.status] || '#566174';
-    const preview = s.content?.slice(0, 200) + (s.content?.length > 200 ? '…' : '');
-
-    return `
-      <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;padding:16px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-          <div>
-            <div style="font-weight:700;color:#eef2f7;font-size:14px;">${escapeHtml(s.title || '')}</div>
-            <div style="font-size:12px;color:#566174;margin-top:2px;">
-              ${escapeHtml(s.category || '')} · ${escapeHtml(s.ign || s.discord_name || 'Unknown')} · ${date}
-            </div>
-          </div>
-          <span style="font-size:12px;padding:2px 10px;border-radius:20px;
-            background:${color}22;color:${color};border:1px solid ${color}44;white-space:nowrap;">
-            ${escapeHtml(s.status || '')}
-          </span>
-        </div>
-        <div style="font-size:12px;color:#566174;font-family:monospace;
-          background:#0a1018;border-radius:6px;padding:10px;margin-bottom:12px;
-          white-space:pre-wrap;line-height:1.5;">${s.content ? escapeHtml(s.content.slice(0,300) + (s.content.length > 300 ? '…' : '')) : ''}</div>
-        ${s.status === 'pending' ? `
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="dp-btn success" style="padding:5px 14px;font-size:12px;"
-              data-action="approve-wiki" data-id="${escapeHtml(String(s.id))}" data-discord="${escapeHtml(s.discord_name || '')}" data-title="${escapeHtml(s.title || '')}">
-              ✓ Approve (+25 pts)
-            </button>
-            <button class="dp-btn danger" style="padding:5px 14px;font-size:12px;"
-              data-action="reject-wiki" data-id="${escapeHtml(String(s.id))}" data-discord="${escapeHtml(s.discord_name || '')}" data-title="${escapeHtml(s.title || '')}">
-              ✗ Reject
-            </button>
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }).join('');
-
-  return cards + renderPager('wiki', pageInfo);
-}
-
-window.loadWikiSubmissions = async function() {
-  const wrap = document.getElementById('dp-wiki-wrap');
-  const btn  = document.getElementById('dp-wiki-refresh-btn');
-  if (!wrap) return;
-
-  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
-  wrap.innerHTML = '<div style="color:#566174;font-size:13px;padding:20px 0;">Loading…</div>';
-
-  const result = await window.electronAPI?.wikiAdminGetSubmissions();
-  if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
-
-  if (!result?.ok) {
-    wrap.innerHTML = `<p style="color:#f87171;font-size:13px;">Error: ${result?.error || 'Unknown'}</p>`;
-    return;
-  }
-  _dpPageData.wiki = result.submissions || [];
-  _dpPageState.wiki = 1;
-  wrap.innerHTML = renderWikiSubmissions(_dpPageData.wiki);
-};
-
-window.adminApproveWiki = async function(id, discordName, title) {
-  const result = await window.electronAPI?.wikiAdminApprove(id);
-  if (result?.ok) {
-    // Send congrats mail to submitter
-    const userLookup = await window.electronAPI?.arcLookupUser(discordName);
-    if (userLookup?.ok && userLookup.user) {
-      await window.electronAPI?.arcSendMail({
-        recipientId: userLookup.user.id,
-        subject: `Your guide "${title}" was approved!`,
-        body: `Great news — your community guide "${title}" has been approved and is now live on the wiki.\n\n+25 ARC Points have been added to your account. Thanks for contributing!`,
-        referenceId: id,
-      });
-    }
-    window.loadWikiSubmissions();
-  } else {
-    alert('Failed: ' + (result?.error || 'Unknown error'));
-  }
-};
-
-window.adminOpenRejectWiki = function(id, discordName, title) {
-  document.getElementById('dp-wiki-reject-modal')?.remove();
-  const modal = document.createElement('div');
-  modal.id = 'dp-wiki-reject-modal';
-  modal.className = 'dp-role-modal';
-  modal.innerHTML = `
-    <div class="dp-role-modal-box" style="min-width:380px;">
-      <p class="dp-role-modal-title">Reject: ${escapeHtml(title)}</p>
-      <div style="margin-bottom:14px;">
-        <div class="dp-label">Feedback for submitter</div>
-        <textarea id="dp-reject-feedback" placeholder="Tell them why it was rejected or what to improve..."
-          style="width:100%;box-sizing:border-box;padding:8px 12px;background:#0f1923;
-          border:1px solid #2a3a52;color:#eef2f7;border-radius:8px;font-size:13px;
-          min-height:80px;resize:vertical;font-family:inherit;"></textarea>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="dp-btn danger" style="flex:1;"
-          data-action="confirm-reject-wiki" data-id="${escapeHtml(String(id))}" data-discord="${escapeHtml(discordName)}" data-title="${escapeHtml(title)}">
-          Reject & Notify
-        </button>
-        <button class="dp-btn" style="flex:1;"
-          onclick="document.getElementById('dp-wiki-reject-modal')?.remove()">Cancel</button>
-      </div>
-    </div>
-  `;
-  modal.addEventListener('click', e => {
-    if (e.target === modal) { modal.remove(); return; }
-    const btn = e.target.closest('[data-action="confirm-reject-wiki"]');
-    if (btn) window.adminRejectWiki(btn.dataset.id, btn.dataset.discord, btn.dataset.title);
-  });
-  document.body.appendChild(modal);
-};
-
-window.adminRejectWiki = async function(id, discordName, title) {
-  const feedback = document.getElementById('dp-reject-feedback')?.value?.trim() || '';
-  document.getElementById('dp-wiki-reject-modal')?.remove();
-
-  const result = await window.electronAPI?.wikiAdminReject({ id, feedback });
-  if (result?.ok) {
-    // Send rejection mail with feedback
-    const userLookup = await window.electronAPI?.arcLookupUser(discordName);
-    if (userLookup?.ok && userLookup.user) {
-      await window.electronAPI?.arcSendMail({
-        recipientId: userLookup.user.id,
-        subject: `Feedback on your guide submission: "${title}"`,
-        body: feedback
-          ? `Your guide "${title}" wasn't approved this time.\n\nFeedback: ${feedback}\n\nFeel free to revise and resubmit!`
-          : `Your guide "${title}" wasn't approved at this time. Feel free to revise and resubmit!`,
-        referenceId: id,
-      });
-    }
-    window.loadWikiSubmissions();
-  } else {
-    alert('Failed: ' + (result?.error || 'Unknown error'));
   }
 };
 

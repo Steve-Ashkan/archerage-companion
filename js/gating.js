@@ -13,7 +13,6 @@ export const PAGES = [
   { id: "landing",         label: "Home",                 group: "core"  },
   { id: "guide",           label: "Guide",                group: "core"  },
   { id: "events",          label: "Events Schedule",      group: "core"  },
-  { id: "wiki",            label: "Wiki",                 group: "core"  },
   { id: "pricesStorage",   label: "Prices & Storage",     group: "core"  },
 
   // ── Calculators ───────────────────────────────────────────────────────────

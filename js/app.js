@@ -20,7 +20,6 @@ import { renderPage as renderAchievementsPage } from "./pages/achievements.js";
 import { renderPage as renderMiscPage } from "./pages/misc.js";
 import { renderPage as renderWarriorNecklacePage } from "./pages/warriorNecklace.js";
 import { renderPage as renderIpnyshArtifactsPage } from "./pages/ipnyshArtifacts.js";
-import { renderPage as renderWikiPage } from "./pages/wiki.js";
 import { renderCostumeBuilderPage } from "./pages/costumebuilder.js";
 import { renderPage as renderDevPanelPage, initDevPanel } from "./pages/devPanel.js";
 import { renderPage as renderGuidePage } from "./pages/guide.js";
@@ -44,7 +43,6 @@ const PAGE_REGISTRY = {
   landing:         { render: renderLandingPage,         inject: true  },
   guide:           { render: renderGuidePage,           inject: true  },
   events:          { render: renderEventSchedule,        inject: false },
-  wiki:            { render: renderWikiPage,             inject: true  },
   netWorth:        { render: renderNetWorthPage,         inject: true  },
   pricesStorage:   { render: renderPricesStoragePage,    inject: true  },
   akash:           { render: renderAkashPage,            inject: true  },

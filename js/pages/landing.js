@@ -332,62 +332,12 @@ function renderDevNotes() {
   `;
 }
 
-// ─── NEWS FEED ────────────────────────────────────────────────────────────────
-
-let _newsCache = null;
-
-async function loadNews() {
-  if (!window.electronAPI?.wikiGetNews) return;
-  const result = await window.electronAPI.wikiGetNews();
-  if (result?.ok) {
-    _newsCache = result.articles;
-    window.renderCurrentPage?.();
-  }
-}
-
-function renderNewsFeed() {
-  if (!_newsCache) { loadNews(); return ''; }
-  if (_newsCache.length === 0) return '';
-
-  return `
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h3 style="margin:0;">Community Guides</h3>
-        <button onclick="window.showPage('wiki')"
-          style="background:none;border:none;color:#93c5fd;font-size:0.82em;cursor:pointer;padding:0;">
-          View wiki →
-        </button>
-      </div>
-      ${_newsCache.map(a => {
-        const date = a.reviewed_at
-          ? new Date(a.reviewed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          : '';
-        return `
-          <div style="display:flex;justify-content:space-between;align-items:center;
-            padding:9px 0;border-bottom:1px solid #1e2a38;">
-            <div style="min-width:0;">
-              <div style="font-size:0.88em;color:#eef2f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                ${escapeHtml(a.title)}
-              </div>
-              <div style="font-size:0.75em;color:#8d99ab;">
-                ${escapeHtml(a.category)}${a.ign ? ` · by ${escapeHtml(a.ign)}` : ''}
-              </div>
-            </div>
-            <div style="font-size:0.75em;color:#394252;flex-shrink:0;margin-left:12px;">${escapeHtml(date)}</div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-  `;
-}
-
 // ─── OPTIONAL SUPPORT + ARC POINTS ────────────────────────────────────────────
 
 function renderSupportCard() {
   const included = [
     'All crafting calculators (Erenor, Hiram, Library...)',
     'Events schedule with live timers',
-    'Wiki and community guides',
     'Costume Builder',
     'AH Scanner and Inventory Scanner imports',
     'Prices, Storage, Net Worth, and community price sync',
@@ -505,7 +455,6 @@ function renderDiscordCard() {
 
 function renderArcPointsCard() {
   const EARN = [
-    { action: 'Submit a wiki guide',    pts: '+25',  color: '#86efac', icon: '📖' },
     { action: 'Submit a recipe',        pts: '+5',   color: '#93c5fd', icon: '⚗' },
     { action: 'Submit an AH price',     pts: '+1',   color: '#94a3b8', icon: '💰' },
   ];
@@ -707,8 +656,8 @@ function renderCredits() {
   const credits = [
     {
       name: 'AviPedia / Aviendha',
-      role: 'Wiki & Guides',
-      note: 'Authored the original AviPedia guides and wiki content that forms the foundation of the Guides section in this app.',
+      role: 'Guides',
+      note: 'Authored the original AviPedia guides that formed the foundation of the in-game knowledge shared in this community.',
     },
     {
       name: 'Hazzmatt',
@@ -769,8 +718,6 @@ export function renderLandingPage() {
     </div>
 
     ${renderUpcomingEvents()}
-
-    ${renderNewsFeed()}
 
     ${renderDiscordCard()}
 
@@ -875,7 +822,7 @@ window.openProfileModal = function() {
           style="width:100%;box-sizing:border-box;padding:8px 12px;background:#0f1923;
             border:1px solid #2a3a52;color:#eef2f7;border-radius:8px;font-size:14px;">
         <div style="font-size:11px;color:#394252;margin-top:6px;">
-          Required for gold redemptions and wiki article credits.
+          Required for gold redemptions and recipe credits.
         </div>
       </div>
 

@@ -73,13 +73,6 @@ try {
     // ── Profile ───────────────────────────────────────────────────────────
     updateIgn: (ign) => ipcRenderer.invoke('update-ign', { ign }),
 
-    // ── Wiki Submissions ──────────────────────────────────────────────────
-    wikiSubmit:              (opts) => ipcRenderer.invoke('wiki-submit', opts),
-    wikiAdminGetSubmissions: ()     => ipcRenderer.invoke('wiki-admin-get-submissions'),
-    wikiAdminApprove:        (id)   => ipcRenderer.invoke('wiki-admin-approve', { id }),
-    wikiAdminReject:         (opts) => ipcRenderer.invoke('wiki-admin-reject', opts),
-    wikiGetNews:             ()     => ipcRenderer.invoke('wiki-get-news'),
-
     // ── Addon Installer ───────────────────────────────────────────────────
     pickFolder:        (opts) => ipcRenderer.invoke('pick-folder', opts),
     checkAddonStatus:  (opts) => ipcRenderer.invoke('check-addon-status', opts),

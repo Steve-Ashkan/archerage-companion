@@ -8,7 +8,6 @@ const SECTIONS = [
   { id: 'prices-storage',   icon: '📦', label: 'Prices & Storage'      },
   { id: 'calculators',      icon: '⚙',  label: 'Calculators'           },
   { id: 'events',           icon: '📅', label: 'Events Schedule'       },
-  { id: 'wiki',             icon: '📖', label: 'Wiki & Guides'         },
   { id: 'arc-points',       icon: '✦',  label: 'ARC Points'            },
   { id: 'costume-builder',  icon: '👗', label: 'Costume Builder'       },
   { id: 'support',          icon: '*', label: 'Free & Donations'       },
@@ -131,12 +130,12 @@ function renderGettingStarted() {
 
     ${step(3, 'Set your In-Game Name (IGN)',
       `Click <strong>✎ Profile</strong> on the home screen and enter your ArcheRage character name.
-      This is used for ARC Point redemptions and wiki article credits.`
+      This is used for ARC Point redemptions and recipe credits.`
     )}
 
     ${step(4, 'Explore the tools',
       `Use the tab bar on the left to navigate. Calculators are under <strong>Calculators</strong>,
-      scanners live under <strong>Prices &amp; Storage</strong>, and community guides are in <strong>Wiki</strong>.`
+      scanners and prices live under <strong>Prices &amp; Storage</strong>.`
     )}
 
     ${tip('Everything user-facing is free. Donations are optional and do not unlock features.')}
@@ -340,21 +339,6 @@ function renderEvents() {
   `);
 }
 
-function renderWiki() {
-  return section('wiki', '📖', 'Wiki & Guides', `
-    <p style="font-size:13px;color:#94a3b8;margin:0 0 16px;line-height:1.6;">
-      Community-written guides reviewed and approved by Ashkan. Browse tips, builds, and game knowledge
-      — or contribute your own.
-    </p>
-
-    ${step(1, 'Browse guides', `Go to <strong>Wiki</strong> in the tab bar. Guides are sorted by category. Click any guide to read it.`)}
-    ${step(2, 'Submit your own guide', `Go to <strong>Submit a Recipe</strong> (or use the button on the Wiki page). Write your guide, pick a category, and submit. Ashkan reviews and approves it.`)}
-    ${step(3, 'Earn ARC Points', `Approved wiki guides earn you <strong style="color:#86efac;">+25 ARC Points</strong>. Approved recipes earn +5. Points can be redeemed for cosmetic app unlocks.`)}
-
-    ${tip('The Home page shows the 5 most recently approved guides so you always see what\'s new without digging.')}
-  `);
-}
-
 function renderArcPoints() {
   return section('arc-points', '✦', 'ARC Points', `
     <p style="font-size:13px;color:#94a3b8;margin:0 0 16px;line-height:1.6;">
@@ -368,7 +352,6 @@ function renderArcPoints() {
           color:#566174;margin-bottom:8px;">How to earn</div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           ${[
-            ['📖 Submit a wiki guide',      '+25 pts',  '#86efac'],
             ['⚗ Submit a recipe',          '+5 pts',   '#93c5fd'],
             ['💰 Submit an AH price',      '+1 pt',    '#8d99ab'],
             ['🔥 7-day daily scan streak', '+25 pts',  '#fb923c'],
@@ -433,7 +416,6 @@ function renderSupport() {
         ${[
           'All crafting calculators',
           'Events schedule with live timers',
-          'Wiki & community guides',
           'Costume Builder',
           'AH Scanner addon',
           'Browse community prices',
@@ -502,7 +484,6 @@ export function renderPage() {
       ${renderPricesStorage()}
       ${renderCalculators()}
       ${renderEvents()}
-      ${renderWiki()}
       ${renderArcPoints()}
       ${renderCostumeBuilder()}
       ${renderSupport()}
