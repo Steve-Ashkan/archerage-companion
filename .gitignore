@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.session
+*.log
+.env
+.claude/
+dist/_obf-temp/
+
+# Personal / AI context files — not for public repo
+CLAUDE.md
+AGENTS.md
+
+# Tool output & build artifacts
+graphify-out/
+outputs/
+gh
+
+# Database dumps
+AA Dump Database/
+
+# Supabase temp
+supabase/.temp/

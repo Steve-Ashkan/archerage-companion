@@ -1,0 +1,7 @@
+project_id = "ywkyhtvfdbtybevggonb"
+
+[functions.super-endpoint]
+verify_jwt = false
+
+[functions.app-api]
+verify_jwt = false

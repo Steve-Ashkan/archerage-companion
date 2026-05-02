@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https://cdn.discordapp.com data:; connect-src 'self' https://*.supabase.co;">
+  <title>ArcheRage Companion</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Update banner — non-blocking notice when a new version is ready -->
+  <div id="update-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;
+    background:#0f2744;border-bottom:2px solid #2563eb;padding:10px 18px;
+    align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:20px;">⬆</span>
+      <div>
+        <span id="update-banner-title" style="font-weight:700;color:#f8fafc;font-size:14px;font-family:Arial,sans-serif;">
+          Update Ready
+        </span>
+        <span id="update-banner-detail" style="color:#93c5fd;font-size:12px;margin-left:8px;font-family:Arial,sans-serif;">
+          Your data and settings are safe.
+        </span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+      <button id="update-install-btn" style="background:#2563eb;color:#fff;border:none;
+        border-radius:6px;padding:7px 20px;font-size:13px;font-weight:600;cursor:pointer;
+        font-family:Arial,sans-serif;transition:background 0.2s;">
+        Install Now
+      </button>
+      <button id="update-github-btn" style="background:transparent;color:#93c5fd;
+        border:1px solid #2563eb;border-radius:6px;padding:7px 14px;font-size:13px;
+        cursor:pointer;font-family:Arial,sans-serif;">
+        GitHub ↗
+      </button>
+      <button id="update-dismiss-btn" style="background:none;border:none;color:#64748b;
+        font-size:20px;line-height:1;cursor:pointer;padding:0 4px;" title="Dismiss">
+        ×
+      </button>
+    </div>
+  </div>
+
+  <h1>🔥 ArcheRage Companion</h1>
+  <div id="content"></div>
+  <button id="floatingTopBtn" type="button" aria-label="Back to top">TOP</button>
+
+  <!-- Mail envelope — hidden until user has unread mail -->
+  <button id="mail-envelope" aria-label="Open mail" style="display:none;">
+    ✉
+    <span id="mail-badge"></span>
+  </button>
+
+  <div id="tab-bar" class="tab-bar"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+{
+  "name": "archerage-companion",
+  "version": "1.7.1",
+  "description": "ArcheRage Companion — crafting calculators, events, wiki, prices and more.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Ashkan",
+  "license": "ISC",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.archerage.companion",
+    "productName": "ArcheRage Companion",
+    "artifactName": "ArcheRage-Companion-Setup-${version}.${ext}",
+    "copyright": "Copyright © 2026 Ashkan",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Steve-Ashkan",
+      "repo": "archerage-companion"
+    },
+    "afterPack": "./scripts/post-build-obfuscate.js",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "style.css",
+      "js/**",
+      "assets/**",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "addons",
+        "to": "addons",
+        "filter": [
+          "**/*",
+          "!**/*.csv"
+        ]
+      }
+    ]
+  },
+  "devDependencies": {
+    "@electron/asar": "^4.2.0",
+    "electron": "^41.1.0",
+    "electron-builder": "^25.1.8",
+    "javascript-obfuscator": "^5.4.1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.102.1",
+    "electron-updater": "^6.8.3"
+  }
+}
