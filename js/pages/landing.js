@@ -655,11 +655,6 @@ export function stopLandingRefresh() {
 function renderCredits() {
   const credits = [
     {
-      name: 'AviPedia / Aviendha',
-      role: 'Guides',
-      note: 'Authored the original AviPedia guides that formed the foundation of the in-game knowledge shared in this community.',
-    },
-    {
       name: 'Hazzmatt',
       role: 'Achievements',
       note: 'Compiled and documented the Achievements data used in the Achievements tracker.',
