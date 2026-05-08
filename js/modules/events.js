@@ -72,6 +72,9 @@ const EVENT_DURATIONS_MIN = {
 const snoozed    = {};
 const notGoing   = {};
 const notified   = {};
+let focusedEventName = null;
+let focusedEventUntil = 0;
+let focusedEventScrolled = false;
 
 // Per-event notification toggle — saved to localStorage
 function getEventToggles() {
@@ -255,6 +258,20 @@ function jsString(value) {
     .replaceAll('\r', '\\r');
 }
 
+function readFocusedEventName() {
+  const requested = localStorage.getItem('eventFocusName');
+  if (requested) {
+    focusedEventName = requested;
+    focusedEventUntil = Date.now() + 8000;
+    focusedEventScrolled = false;
+    localStorage.removeItem('eventFocusName');
+  }
+
+  if (focusedEventName && Date.now() < focusedEventUntil) return focusedEventName;
+  focusedEventName = null;
+  return null;
+}
+
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 
 async function showNativeNotification(eventName, minutesLeft) {
@@ -400,6 +417,7 @@ export function renderEventSchedule() {
       .ev-card:hover { border-color:#4b759c;background:#18273a;transform:translateY(-1px); }
       .ev-card.urgent { border-color:#f87171;box-shadow:0 0 16px rgba(248,113,113,0.15);animation:urgentPulse 2s ease-in-out infinite; }
       .ev-card.soon { border-color:#fcd34d;box-shadow:0 0 12px rgba(252,211,77,0.1); }
+      .ev-card.focused { border-color:#66d9d6;box-shadow:0 0 0 2px rgba(102,217,214,0.22),0 0 24px rgba(102,217,214,0.18); }
       .ev-card.disabled { opacity:0.4; }
       @keyframes urgentPulse {
         0%,100% { box-shadow:0 0 16px rgba(248,113,113,0.15); }
@@ -460,6 +478,7 @@ export function renderEventSchedule() {
 
 function updateUI() {
   const now = getServerNow();
+  const focusName = readFocusedEventName();
   const clockEl = document.getElementById('digital-clock');
   const dateEl  = document.getElementById('server-date');
   const catEl   = document.getElementById('events-categories');
@@ -485,7 +504,8 @@ function updateUI() {
 
   // Render categories
   catEl.innerHTML = eventCategories.map(cat => {
-    const isOpen = collapsed[cat.id] !== true; // default open
+    const containsFocus = focusName && cat.events.some(ev => ev.name === focusName);
+    const isOpen = collapsed[cat.id] !== true || containsFocus; // default open
     const events = cat.events.map(ev => {
       return { ...ev, ...getEventOccurrence(ev, now) };
     }).sort((a, b) => a.diff - b.diff);
@@ -507,15 +527,22 @@ function updateUI() {
         </div>
         <div class="ev-cat-body ${isOpen ? 'open' : ''}" id="body-${cat.id}">
           <div class="ev-grid">
-            ${events.map(ev => renderEventCard(ev, toggles, now)).join('')}
+            ${events.map(ev => renderEventCard(ev, toggles, now, focusName)).join('')}
           </div>
         </div>
       </div>
     `;
   }).join('');
+
+  if (focusName && !focusedEventScrolled) {
+    focusedEventScrolled = true;
+    setTimeout(() => {
+      document.querySelector('[data-event-focused="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  }
 }
 
-function renderEventCard(event, toggles, now) {
+function renderEventCard(event, toggles, now, focusName = null) {
   const ms       = event.diff;
   const isDaily  = event.days === 'Daily';
   const displayMs = event.active ? event.endTime - now : ms;
@@ -531,6 +558,7 @@ function renderEventCard(event, toggles, now) {
   const barClass  = urgent ? 'urgent-bar' : soon ? 'soon-bar' : '';
   const timerClass = urgent ? 'urgent-text' : soon ? 'soon-text' : '';
   const cardClass  = disabled ? 'disabled' : urgent ? 'urgent' : soon ? 'soon' : '';
+  const focused = focusName === event.name;
 
   // Convert UTC event time to server time for display.
   const displayUtc = started ? event.endTime : event.nextTime;
@@ -541,7 +569,7 @@ function renderEventCard(event, toggles, now) {
   const eventName = escapeHtml(event.name);
 
   return `
-    <div class="ev-card ${cardClass}">
+    <div class="ev-card ${cardClass} ${focused ? 'focused' : ''}" ${focused ? 'data-event-focused="true"' : ''}>
       <div class="ev-card-top">
         <div class="ev-name">${eventName}${started ? ' <span style="color:#f87171;font-size:10px;">(Active)</span>' : ''}</div>
         <span class="ev-timer ${timerClass}">${formatCountdown(displayMs)}</span>

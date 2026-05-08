@@ -12,6 +12,8 @@ export const PAGES = [
   // ── Core ──────────────────────────────────────────────────────────────────
   { id: "landing",         label: "Home",                 group: "core"  },
   { id: "guide",           label: "Guide",                group: "core"  },
+  { id: "newPlayerGuide",  label: "New Player Guide",     group: "core"  },
+  { id: "newPlayerChecklist", label: "New Player Checklist", group: "core" },
   { id: "events",          label: "Events Schedule",      group: "core"  },
   { id: "pricesStorage",   label: "Prices & Storage",     group: "core"  },
 

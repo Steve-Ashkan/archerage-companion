@@ -23,6 +23,8 @@ import { renderPage as renderIpnyshArtifactsPage } from "./pages/ipnyshArtifacts
 import { renderCostumeBuilderPage } from "./pages/costumebuilder.js";
 import { renderPage as renderDevPanelPage, initDevPanel } from "./pages/devPanel.js";
 import { renderPage as renderGuidePage } from "./pages/guide.js";
+import { renderPage as renderNewPlayerGuidePage } from "./pages/newPlayerGuide.js";
+import { renderPage as renderNewPlayerChecklistPage } from "./pages/newPlayerChecklist.js";
 import { renderPage as renderAddonsPage } from "./pages/addons.js";
 import { renderLoginPage } from "./pages/login.js";
 import { renderPage as renderRecipeLookupPage } from "./pages/recipeLookup.js";
@@ -42,6 +44,8 @@ const PAGE_REGISTRY = {
   login:           { render: renderLoginPage,           inject: true  },
   landing:         { render: renderLandingPage,         inject: true  },
   guide:           { render: renderGuidePage,           inject: true  },
+  newPlayerGuide:  { render: renderNewPlayerGuidePage,  inject: true  },
+  newPlayerChecklist: { render: renderNewPlayerChecklistPage, inject: true },
   events:          { render: renderEventSchedule,        inject: false },
   netWorth:        { render: renderNetWorthPage,         inject: true  },
   pricesStorage:   { render: renderPricesStoragePage,    inject: true  },
