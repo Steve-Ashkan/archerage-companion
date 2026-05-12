@@ -8,12 +8,12 @@ try {
     openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
     // ── File I/O ──────────────────────────────────────────────────────────
-    readAHCsv:         ()      => ipcRenderer.invoke('read-ah-csv'),
-    readScanItems:     ()      => ipcRenderer.invoke('read-scan-items'),
-    writeScanItems:    (items) => ipcRenderer.invoke('write-scan-items', items),
-    getAddonDir:       ()      => ipcRenderer.invoke('get-addon-dir'),
-    readInventoryScan:    ()   => ipcRenderer.invoke('read-inventory-scan'),
-    readProficiencyScan:  ()   => ipcRenderer.invoke('read-proficiency-scan'),
+    readAHCsv:         (opts)       => ipcRenderer.invoke('read-ah-csv', opts),
+    readScanItems:     (opts)       => ipcRenderer.invoke('read-scan-items', opts),
+    writeScanItems:    (items, opts) => ipcRenderer.invoke('write-scan-items', { items, ...(opts || {}) }),
+    getAddonDir:       (opts)       => ipcRenderer.invoke('get-addon-dir', opts),
+    readInventoryScan:    (opts)    => ipcRenderer.invoke('read-inventory-scan', opts),
+    readProficiencyScan:  (opts)    => ipcRenderer.invoke('read-proficiency-scan', opts),
 
     // ── Auth ──────────────────────────────────────────────────────────────
     getAuthStatus:       ()    => ipcRenderer.invoke('get-auth-status'),
@@ -87,7 +87,7 @@ try {
     recipeGetApproved:  ()     => ipcRenderer.invoke('recipe-get-approved'),
 
     // ── Crowdsourced Prices / Inventory ───────────────────────────────────
-    addToScanList:             (itemName) => ipcRenderer.invoke('add-to-scan-list', { itemName }),
+    addToScanList:             (itemName, opts) => ipcRenderer.invoke('add-to-scan-list', { itemName, ...(opts || {}) }),
     submitInventory:           (items)    => ipcRenderer.invoke('submit-inventory', items),
     submitAuthoritativePrices: (items)    => ipcRenderer.invoke('submit-authoritative-prices', items),
     getPendingPriceItems:      ()         => ipcRenderer.invoke('get-pending-price-items'),

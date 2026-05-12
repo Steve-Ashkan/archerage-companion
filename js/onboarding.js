@@ -305,7 +305,7 @@ window._obInstallAddons = async function() {
   if (!result?.ok) {
     if (statusEl) statusEl.innerHTML = `
       <div style="color:#f87171;font-size:13px;padding:6px 0;">
-        Install failed — you can retry any time from the Addons page.
+        Install failed: ${escapeHtml(result?.error || 'you can retry any time from the Addons page.')}
       </div>`;
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Try Again'; }
     return;

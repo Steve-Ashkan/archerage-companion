@@ -9,6 +9,12 @@ import {
 } from '../data/proficiency.js';
 
 const MAX_POINTS = 230000;
+const ADDON_PATH_KEY = 'addonInstallPath';
+
+function getAddonTargetBase() {
+  const targetBase = localStorage.getItem(ADDON_PATH_KEY);
+  return targetBase ? { targetBase } : undefined;
+}
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 
@@ -223,7 +229,7 @@ window.profImportScan = async function() {
 
   let result;
   try {
-    result = await window.electronAPI.readProficiencyScan();
+    result = await window.electronAPI.readProficiencyScan(getAddonTargetBase());
   } catch(e) {
     if (statusEl) statusEl.innerHTML = `<div style="padding:10px 14px;background:#2a1a1a;border:1px solid #5a2a2a;border-radius:8px;color:#f87171;font-size:13px;">Error: ${e.message}</div>`;
     return;

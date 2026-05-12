@@ -24,6 +24,12 @@ import { getCategoryOptions, getFilteredItems } from "./pricesStorage/filters.js
 // Shape: { [itemName]: { category: string } }
 
 const CUSTOM_ITEMS_KEY = "customItems";
+const ADDON_PATH_KEY = "addonInstallPath";
+
+function getAddonTargetBase() {
+  const targetBase = localStorage.getItem(ADDON_PATH_KEY);
+  return targetBase ? { targetBase } : undefined;
+}
 
 function getCustomItems() {
   try {
@@ -1168,7 +1174,7 @@ window.triggerAHImport = async function() {
   if (window.electronAPI?.readAHCsv) {
     if (status) status.textContent = "Reading from addon folder...";
     try {
-      const result = await window.electronAPI.readAHCsv();
+      const result = await window.electronAPI.readAHCsv(getAddonTargetBase());
       if (result.ok && Object.keys(result.data).length > 0) {
         let count = 0;
         for (const [name, price] of Object.entries(result.data)) {
@@ -1201,7 +1207,9 @@ window.triggerAHImport = async function() {
         return;
       } else if (!result.ok) {
         // File not found - fall through to file picker
-        if (status) status.textContent = "Addon file not found — use file picker";
+        if (status) status.textContent = result.error === 'File not found'
+          ? "Addon file not found — use file picker"
+          : `Addon path issue: ${result.error}`;
         setTimeout(() => { if (status) status.textContent = ""; }, 3000);
       }
     } catch(e) {
@@ -1290,7 +1298,7 @@ window.exportScanItems = async function() {
   }
 
   try {
-    const result = await window.electronAPI.writeScanItems(itemNames);
+    const result = await window.electronAPI.writeScanItems(itemNames, getAddonTargetBase());
     if (result.ok) {
       if (status) {
         status.textContent = `✓ Exported ${result.count} items to scan_items.csv`;
@@ -1425,7 +1433,7 @@ async function autoExportScanItems() {
     for (const name of Object.keys(customItems)) {
       if (!itemNames.includes(name)) itemNames.push(name);
     }
-    await window.electronAPI.writeScanItems(itemNames);
+    await window.electronAPI.writeScanItems(itemNames, getAddonTargetBase());
   } catch(e) {
     // Silent fail — don't bother user if file write fails
   }
@@ -1487,10 +1495,13 @@ window.triggerInventoryImport = async function() {
   // Try direct IPC read first
   if (window.electronAPI?.readInventoryScan) {
     try {
-      const result = await window.electronAPI.readInventoryScan();
+      const result = await window.electronAPI.readInventoryScan(getAddonTargetBase());
       if (result.ok && Object.keys(result.data).length > 0) {
         handleInventoryData(result.data, status, 'Unknown');
         return;
+      } else if (!result.ok && result.error !== 'File not found' && status) {
+        status.textContent = `Addon path issue: ${result.error}`;
+        setTimeout(() => { if (status) status.textContent = ""; }, 4000);
       }
     } catch(e) {}
   }

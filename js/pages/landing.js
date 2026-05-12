@@ -530,7 +530,10 @@ async function loadAddonStatus() {
   // Check the saved custom path first (if user picked one before),
   // then fall back to the default Documents/ArcheRage/Addon path.
   const savedPath = localStorage.getItem(ADDON_PATH_KEY) || null;
-  const result = await window.electronAPI.checkAddonStatus(savedPath ? { targetBase: savedPath } : undefined);
+  let result = await window.electronAPI.checkAddonStatus(savedPath ? { targetBase: savedPath } : undefined);
+  if (!result?.ok && savedPath) {
+    result = await window.electronAPI.checkAddonStatus();
+  }
 
   _addonChecked = true;
   if (result?.ok) {
@@ -567,11 +570,10 @@ function renderAddonBanner() {
         <div>
           <div style="font-weight:700;color:#f87171;margin-bottom:4px;">⚠ Addons Not Found</div>
           <div style="font-size:13px;color:#8d99ab;">
-            ${list} ${missing.length > 1 ? 'are' : 'is'} not installed in your ArcheRage addon folder.
+            ${list} ${missing.length > 1 ? 'are' : 'is'} not installed in your selected addon folder.
             ${canInstall
-              ? `Click <strong style="color:#93c5fd;">Install Addons</strong> and select your
-                 <code style="background:#0f1923;padding:1px 5px;border-radius:4px;">Documents\ArcheRage\Addon</code> folder.`
-              : `Select your <code style="background:#0f1923;padding:1px 5px;border-radius:4px;">Documents\ArcheRage\Addon</code> folder to install them.`
+              ? `Click <strong style="color:#93c5fd;">Install Addons</strong> and choose where the addon folders should go.`
+              : `Select an install folder to copy the addons there.`
             }
           </div>
           ${pathLine}
@@ -614,7 +616,7 @@ window.installAddons = async function() {
 
   const result = await window.electronAPI?.installAddons({ targetBase });
   if (!result?.ok) {
-    alert('Install failed. Please try again.');
+    alert(`Install failed: ${result?.error || 'Please try again.'}`);
     if (btn) { btn.disabled = false; btn.textContent = 'Install Addons'; }
     return;
   }

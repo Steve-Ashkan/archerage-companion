@@ -9,6 +9,7 @@ let _checked   = false;
 let _checking  = false;
 let _pathValid = null;  // null = unchecked, true = valid, false = invalid
 let _pathReason = null; // reason string if invalid
+let _pathWarning = null; // warning string if selected folder is unusual
 
 const ADDONS = {
   ahscanner: {
@@ -44,10 +45,14 @@ function getPath() {
 }
 
 async function validatePath(p) {
-  if (!p) { _pathValid = false; _pathReason = 'No path selected.'; return; }
+  if (!p) { _pathValid = false; _pathReason = 'No path selected.'; _pathWarning = null; return; }
   const result = await window.electronAPI?.validateAddonPath({ targetPath: p });
+  if (result?.path && result.path !== p) {
+    localStorage.setItem(ADDON_PATH_KEY, result.path);
+  }
   _pathValid  = result?.valid === true;
   _pathReason = result?.reason || null;
+  _pathWarning = result?.warning || null;
 }
 
 async function checkStatus() {
@@ -60,7 +65,11 @@ async function checkStatus() {
   _checking = false;
   _checked  = true;
   if (result?.ok) {
+    if (savedPath && result.targetBase && result.targetBase !== savedPath) {
+      localStorage.setItem(ADDON_PATH_KEY, result.targetBase);
+    }
     _status = result.status;
+    _pathWarning = result.warning || _pathWarning;
     window.renderCurrentPage?.();
   }
 }
@@ -107,12 +116,18 @@ export function renderPage() {
             <div style="font-size:13px;color:${savedPath ? '#eef2f7' : '#566174'};word-break:break-all;">
               ${savedPath
                 ? `<code style="background:#0f1923;padding:2px 8px;border-radius:5px;font-size:12px;">${escapeHtml(savedPath)}</code>`
-                : `<span>No path set — click <strong style="color:#93c5fd;">Select Folder</strong> and choose your <code style="background:#0f1923;padding:2px 6px;border-radius:4px;font-size:12px;">ArcheRage\\Addon</code> folder.</span>`
+                : `<span>No path set - click <strong style="color:#93c5fd;">Select Folder</strong> and choose where the addon folders should be installed.</span>`
               }
             </div>
             ${savedPath && _pathValid === false && _pathReason
               ? `<div style="font-size:12px;color:#f97316;margin-top:6px;">⚠ ${escapeHtml(_pathReason)}</div>`
               : ''}
+            ${savedPath && _pathValid === true && _pathWarning
+              ? `<div style="font-size:12px;color:#facc15;margin-top:6px;">Warning: ${escapeHtml(_pathWarning)}</div>`
+              : ''}
+            <div style="font-size:12px;color:#566174;margin-top:8px;">
+              The app installs each addon as a subfolder here and uses this same path for scanner CSV import/export.
+            </div>
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0;">
             <button onclick="window.addonsPickPath()"
@@ -142,7 +157,7 @@ export function renderPage() {
             </div>
           </div>
           <button onclick="window.addonsInstallAll()"
-            ${_pathValid !== true ? 'disabled title="Select a valid ArcheRage Addon folder first"' : ''}
+            ${_pathValid !== true ? 'disabled title="Select an install folder first"' : ''}
             style="padding:9px 22px;background:${_pathValid === true ? '#3a1a1a' : '#1a1a1a'};
             border:1px solid ${_pathValid === true ? '#c0392b' : '#2a2a2a'};
             color:${_pathValid === true ? '#f87171' : '#394252'};
@@ -191,7 +206,7 @@ function renderAddonCard(id, addon) {
           <div style="font-size:13px;color:#8d99ab;">${addon.desc}</div>
         </div>
         <button onclick="window.addonsInstallOne('${id}')"
-          ${_pathValid !== true ? 'disabled title="Select a valid ArcheRage Addon folder first"' : ''}
+          ${_pathValid !== true ? 'disabled title="Select an install folder first"' : ''}
           style="padding:7px 18px;background:${_pathValid === true ? '#1a2535' : '#111920'};
           border:1px solid ${_pathValid === true ? '#2d5a8a' : '#1e2535'};
           color:${_pathValid === true ? '#93c5fd' : '#394252'};
@@ -221,6 +236,7 @@ window.addonsPickPath = async function() {
   _status     = null;
   _pathValid  = null;
   _pathReason = null;
+  _pathWarning = null;
   await validatePath(picked.path);
   window.renderCurrentPage?.();
 };

@@ -7,6 +7,13 @@ import { ROLE_LABELS, ROLE_COLORS, ROLE_LEVEL, ALL_ROLES, ALL_ROLES_DISPLAY } fr
 import { CONFIG } from "../config.js";
 import { escapeHtml } from "../utils.js";
 
+const ADDON_PATH_KEY = 'addonInstallPath';
+
+function getAddonTargetBase() {
+  const targetBase = localStorage.getItem(ADDON_PATH_KEY);
+  return targetBase ? { targetBase } : undefined;
+}
+
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 function rolePill(role) {
@@ -1042,7 +1049,7 @@ window.addAllPendingToScanList = async function() {
         skipped++;
         continue;
       }
-      const r = await window.electronAPI?.addToScanList?.(name);
+      const r = await window.electronAPI?.addToScanList?.(name, getAddonTargetBase());
       if (r?.ok) added++;
     }
   }
@@ -1075,7 +1082,7 @@ window.addPendingItemToScanList = async function(btn, itemName) {
   }
   btn.disabled = true;
   btn.textContent = 'Adding…';
-  const result = await window.electronAPI?.addToScanList?.(itemName);
+  const result = await window.electronAPI?.addToScanList?.(itemName, getAddonTargetBase());
   if (result?.ok) {
     btn.textContent = 'Added ✓';
     btn.className = btn.className.replace('success', '') + ' success';

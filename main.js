@@ -86,6 +86,8 @@ function stopMailPoll() {
 // ─── PATHS ────────────────────────────────────────────────────────────────────
 const APP_DATA_DIR = path.join(os.homedir(), '.archerage-companion');
 const SESSION_PATH = path.join(APP_DATA_DIR, '.session');
+const ADDON_NAMES  = ['ahscanner', 'invscanner', 'profscanner'];
+const DEFAULT_ADDON_BASE = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
 
 function ensureAppDataDir() {
   if (!fs.existsSync(APP_DATA_DIR)) {
@@ -93,16 +95,85 @@ function ensureAppDataDir() {
   }
 }
 
-const ADDON_DIR  = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon', 'ahscanner');
-const AH_PRICES  = path.join(ADDON_DIR, 'ah_prices.csv');
-const SCAN_ITEMS = path.join(ADDON_DIR, 'scan_items.csv');
-const INV_SCAN_PATH  = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon', 'invscanner',  'inventory_scan.csv');
-const PROF_SCAN_PATH = path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon', 'profscanner', 'proficiency_scan.csv');
+function getShellDocumentsDir() {
+  try { return app.getPath('documents'); }
+  catch { return path.join(os.homedir(), 'Documents'); }
+}
 
-function ensureAddonDir() {
-  if (!fs.existsSync(ADDON_DIR)) {
-    try { fs.mkdirSync(ADDON_DIR, { recursive: true }); } catch(e) {}
+function isOneDrivePath(p) {
+  return path.resolve(p || '').split(/[\\/]+/).some(part => {
+    const lower = part.toLowerCase();
+    return lower === 'onedrive' || lower.startsWith('onedrive -');
+  });
+}
+
+function isInsidePath(parent, child) {
+  const rel = path.relative(path.resolve(parent), path.resolve(child));
+  return rel === '' || (!!rel && !rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+function getDefaultAddonBase() {
+  const shellDocumentsBase = path.join(getShellDocumentsDir(), 'ArcheRage', 'Addon');
+  const candidates = [...new Set([DEFAULT_ADDON_BASE, shellDocumentsBase])];
+  const existingNonOneDrive = candidates.find(p => !isOneDrivePath(p) && fs.existsSync(p));
+  if (existingNonOneDrive) return existingNonOneDrive;
+  return candidates.find(p => !isOneDrivePath(p)) || DEFAULT_ADDON_BASE;
+}
+
+function normalizeAddonBasePath(targetPath) {
+  return path.resolve(targetPath || getDefaultAddonBase());
+}
+
+function validateAddonBasePath(targetPath, { mustExist = true } = {}) {
+  if (!targetPath) return { valid: false, reason: 'No path provided.' };
+
+  const resolved = normalizeAddonBasePath(targetPath);
+  if (mustExist && !fs.existsSync(resolved)) {
+    return { valid: false, path: resolved, reason: 'Folder does not exist.' };
   }
+  if (fs.existsSync(resolved)) {
+    try {
+      if (!fs.statSync(resolved).isDirectory()) {
+        return { valid: false, path: resolved, reason: 'Path must be a folder.' };
+      }
+    } catch(e) {
+      return { valid: false, path: resolved, reason: e.message };
+    }
+  }
+
+  let real = resolved;
+  try { if (fs.existsSync(resolved)) real = fs.realpathSync(resolved); } catch { /* keep resolved */ }
+
+  const leaf = path.basename(resolved).toLowerCase();
+  const parent = path.basename(path.dirname(resolved)).toLowerCase();
+  let warning = null;
+  if (isOneDrivePath(real)) {
+    warning = 'OneDrive selected. The app can install here, but ArcheRage may not load addons from this folder.';
+  } else if (leaf !== 'addon' || parent !== 'archerage') {
+    warning = 'This does not look like the default ArcheRage\\Addon folder. The app will still install and read scanner files here.';
+  }
+
+  return { valid: true, path: resolved, reason: null, warning };
+}
+
+function resolveAddonBase(targetBase, options = {}) {
+  const validation = validateAddonBasePath(targetBase || getDefaultAddonBase(), {
+    mustExist: options.mustExist === true,
+  });
+  if (!validation.valid) throw new Error(validation.reason || 'Invalid addon path');
+  return validation.path;
+}
+
+function getAddonFilePath(targetBase, addonName, fileName) {
+  return path.join(resolveAddonBase(targetBase), addonName, fileName);
+}
+
+function ensureAddonDir(targetBase, addonName = 'ahscanner') {
+  const addonDir = path.join(resolveAddonBase(targetBase), addonName);
+  if (!fs.existsSync(addonDir)) {
+    try { fs.mkdirSync(addonDir, { recursive: true }); } catch(e) {}
+  }
+  return addonDir;
 }
 
 // ─── SESSION HELPERS ──────────────────────────────────────────────────────────
@@ -281,10 +352,11 @@ ipcMain.handle('open-external', (event, url) => {
 
 // ─── IPC: FILE HANDLERS ───────────────────────────────────────────────────────
 
-ipcMain.handle('read-ah-csv', () => {
+ipcMain.handle('read-ah-csv', (event, { targetBase } = {}) => {
   try {
-    if (!fs.existsSync(AH_PRICES)) return { ok: false, data: {}, error: 'File not found' };
-    const lines = fs.readFileSync(AH_PRICES, 'utf8').split('\n').filter(l => l.trim());
+    const ahPrices = getAddonFilePath(targetBase, 'ahscanner', 'ah_prices.csv');
+    if (!fs.existsSync(ahPrices)) return { ok: false, data: {}, error: 'File not found', path: ahPrices };
+    const lines = fs.readFileSync(ahPrices, 'utf8').split('\n').filter(l => l.trim());
     const data = {};
     for (let i = 1; i < lines.length; i++) {
       const parts = lines[i].split(',');
@@ -294,29 +366,32 @@ ipcMain.handle('read-ah-csv', () => {
         if (name && !isNaN(price)) data[name] = price;
       }
     }
-    return { ok: true, data };
+    return { ok: true, data, path: ahPrices };
   } catch(e) { return { ok: false, data: {}, error: e.message }; }
 });
 
-ipcMain.handle('read-scan-items', () => {
+ipcMain.handle('read-scan-items', (event, { targetBase } = {}) => {
   try {
-    if (!fs.existsSync(SCAN_ITEMS)) return { ok: false, items: [], error: 'File not found' };
-    const items = fs.readFileSync(SCAN_ITEMS, 'utf8')
+    const scanItems = getAddonFilePath(targetBase, 'ahscanner', 'scan_items.csv');
+    if (!fs.existsSync(scanItems)) return { ok: false, items: [], error: 'File not found', path: scanItems };
+    const items = fs.readFileSync(scanItems, 'utf8')
       .split('\n').map(l => l.trim()).filter(l => l && l !== 'item_name');
-    return { ok: true, items };
+    return { ok: true, items, path: scanItems };
   } catch(e) { return { ok: false, items: [], error: e.message }; }
 });
 
-ipcMain.handle('write-scan-items', (event, items) => {
+ipcMain.handle('write-scan-items', (event, payload) => {
   try {
-    ensureAddonDir();
+    const items = Array.isArray(payload) ? payload : (payload?.items || []);
+    const targetBase = Array.isArray(payload) ? null : payload?.targetBase;
+    const scanItems = path.join(ensureAddonDir(targetBase, 'ahscanner'), 'scan_items.csv');
     // M-2: Strip CSV-unsafe characters to prevent item names from corrupting the file
     const safe = items
       .map(i => sanitizeScanItemName(i))
       .filter(name => isValidScanItemName(name));
     const content = ['item_name', ...safe].join('\n') + '\n';
-    fs.writeFileSync(SCAN_ITEMS, content, 'utf8');
-    return { ok: true, count: safe.length };
+    fs.writeFileSync(scanItems, content, 'utf8');
+    return { ok: true, count: safe.length, path: scanItems };
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -333,7 +408,7 @@ function isValidScanItemName(itemName) {
   return true;
 }
 
-ipcMain.handle('add-to-scan-list', async (event, { itemName }) => {
+ipcMain.handle('add-to-scan-list', async (event, { itemName, targetBase } = {}) => {
   try {
     await enforceRole('dev');
     // M-2: Sanitize item name
@@ -341,18 +416,18 @@ ipcMain.handle('add-to-scan-list', async (event, { itemName }) => {
     if (!isValidScanItemName(safeName)) {
       return { ok: false, reason: 'invalid', error: 'Rejected suspicious item name' };
     }
-    ensureAddonDir();
+    const scanItems = path.join(ensureAddonDir(targetBase, 'ahscanner'), 'scan_items.csv');
     let items = [];
-    if (fs.existsSync(SCAN_ITEMS)) {
-      items = fs.readFileSync(SCAN_ITEMS, 'utf8')
+    if (fs.existsSync(scanItems)) {
+      items = fs.readFileSync(scanItems, 'utf8')
         .split('\n').map(l => l.trim()).filter(l => l && l !== 'item_name');
     }
     if (!items.includes(safeName)) {
       items.push(safeName);
       const content = ['item_name', ...items].join('\n') + '\n';
-      fs.writeFileSync(SCAN_ITEMS, content, 'utf8');
+      fs.writeFileSync(scanItems, content, 'utf8');
     }
-    return { ok: true, items };
+    return { ok: true, items, path: scanItems };
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
@@ -383,14 +458,21 @@ ipcMain.handle('reject-pending-item', async (e, { itemName }) => {
   } catch(e) { return { ok: false, error: e.message }; }
 });
 
-ipcMain.handle('get-addon-dir', () => ({
-  ok: true, path: ADDON_DIR, exists: fs.existsSync(ADDON_DIR)
-}));
-
-ipcMain.handle('read-inventory-scan', () => {
+ipcMain.handle('get-addon-dir', (event, { targetBase } = {}) => {
   try {
-    if (!fs.existsSync(INV_SCAN_PATH)) return { ok: false, data: {}, error: 'File not found' };
-    const lines = fs.readFileSync(INV_SCAN_PATH, 'utf8').split('\n').filter(l => l.trim());
+    const base = resolveAddonBase(targetBase);
+    const addonDir = path.join(base, 'ahscanner');
+    return { ok: true, base, path: addonDir, exists: fs.existsSync(addonDir) };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('read-inventory-scan', (event, { targetBase } = {}) => {
+  try {
+    const invScanPath = getAddonFilePath(targetBase, 'invscanner', 'inventory_scan.csv');
+    if (!fs.existsSync(invScanPath)) return { ok: false, data: {}, error: 'File not found', path: invScanPath };
+    const lines = fs.readFileSync(invScanPath, 'utf8').split('\n').filter(l => l.trim());
     const data = {};
     for (let i = 1; i < lines.length; i++) {
       const parts = lines[i].split(',');
@@ -404,14 +486,15 @@ ipcMain.handle('read-inventory-scan', () => {
         if (name && !isNaN(total)) data[name] = { total, bag, bank, guild, coffer };
       }
     }
-    return { ok: true, data };
+    return { ok: true, data, path: invScanPath };
   } catch(e) { return { ok: false, data: {}, error: e.message }; }
 });
 
-ipcMain.handle('read-proficiency-scan', () => {
+ipcMain.handle('read-proficiency-scan', (event, { targetBase } = {}) => {
   try {
-    if (!fs.existsSync(PROF_SCAN_PATH)) return { ok: false, data: {}, error: 'File not found' };
-    const lines = fs.readFileSync(PROF_SCAN_PATH, 'utf8').split('\n').filter(l => l.trim());
+    const profScanPath = getAddonFilePath(targetBase, 'profscanner', 'proficiency_scan.csv');
+    if (!fs.existsSync(profScanPath)) return { ok: false, data: {}, error: 'File not found', path: profScanPath };
+    const lines = fs.readFileSync(profScanPath, 'utf8').split('\n').filter(l => l.trim());
     const data = {};
     for (let i = 1; i < lines.length; i++) {
       const parts = lines[i].split(',');
@@ -422,7 +505,7 @@ ipcMain.handle('read-proficiency-scan', () => {
         if (skillName && !isNaN(points)) data[skillName] = { points, character };
       }
     }
-    return { ok: true, data };
+    return { ok: true, data, path: profScanPath };
   } catch(e) { return { ok: false, data: {}, error: e.message }; }
 });
 
@@ -810,49 +893,33 @@ function getBundledAddonsDir() {
     : path.join(__dirname, 'addons');
 }
 
-const ADDON_NAMES = ['ahscanner', 'invscanner', 'profscanner'];
-
 // Open a folder picker dialog — returns the selected path or null if cancelled.
 ipcMain.handle('pick-folder', async (event, { defaultPath } = {}) => {
   const wins = BrowserWindow.getAllWindows();
+  const requestedDefault = defaultPath ? normalizeAddonBasePath(defaultPath) : getDefaultAddonBase();
   const result = await dialog.showOpenDialog(wins[0] || null, {
-    title:       'Select your ArcheRage Addon folder',
-    defaultPath: defaultPath || path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon'),
+    title:       'Select addon install folder',
+    defaultPath: requestedDefault,
     properties:  ['openDirectory'],
-    buttonLabel: 'Select Addon Folder',
+    buttonLabel: 'Select Folder',
   });
   if (result.canceled || !result.filePaths.length) return { ok: true, path: null };
-  return { ok: true, path: result.filePaths[0] };
+  return { ok: true, path: normalizeAddonBasePath(result.filePaths[0]) };
 });
 
 // Check which addons are missing or present at the target location
 ipcMain.handle('validate-addon-path', (event, { targetPath } = {}) => {
-  if (!targetPath) return { ok: true, valid: false, reason: 'No path provided.' };
-  const resolved = path.resolve(targetPath);
-  if (!resolved.startsWith(os.homedir())) {
-    return { ok: true, valid: false, reason: 'Path must be inside your user folder.' };
-  }
-  if (!fs.existsSync(resolved)) {
-    return { ok: true, valid: false, reason: 'Folder does not exist.' };
-  }
-  // H-3: Dereference symlinks/junctions before checking to prevent bypass
-  let real = resolved;
-  try { real = fs.realpathSync(resolved); } catch { /* keep resolved */ }
-  if (!real.startsWith(os.homedir())) {
-    return { ok: true, valid: false, reason: 'Path resolves outside your user folder.' };
-  }
-  if (!real.toLowerCase().includes('archerage')) {
-    return { ok: true, valid: false, reason: 'This doesn\'t look like an ArcheRage folder. Make sure you select the ArcheRage\\Addon folder.' };
-  }
-  return { ok: true, valid: true, reason: null };
+  const validation = validateAddonBasePath(targetPath, { mustExist: true });
+  return { ok: true, valid: validation.valid, reason: validation.reason, warning: validation.warning, path: validation.path };
 });
 
 ipcMain.handle('check-addon-status', (event, { targetBase } = {}) => {
   const bundledDir = getBundledAddonsDir();
-  const base = targetBase ? path.resolve(targetBase) : path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
-  if (targetBase && !base.startsWith(os.homedir())) {
-    return { ok: false, error: 'Invalid path' };
+  const validation = validateAddonBasePath(targetBase || getDefaultAddonBase(), { mustExist: false });
+  if (!validation.valid) {
+    return { ok: false, error: validation.reason || 'Invalid path', targetBase: validation.path };
   }
+  const base = validation.path;
 
   if (!app.isPackaged) console.log('[addon] bundledDir:', bundledDir);
   if (!app.isPackaged) console.log('[addon] targetBase:', base);
@@ -866,25 +933,18 @@ ipcMain.handle('check-addon-status', (event, { targetBase } = {}) => {
     if (!app.isPackaged) console.log(`[addon] ${name} — bundled: ${bundledExists}, installed: ${installed}`);
     status[name] = { bundledExists, installed };
   }
-  return { ok: true, status, targetBase: base };
+  return { ok: true, status, targetBase: base, warning: validation.warning };
 });
 
 // Copy bundled addons to the specified folder (or default location).
 // Always overwrites — keeps addon up to date with app updates.
 ipcMain.handle('install-addons', (event, { names, targetBase } = {}) => {
   const bundledDir = getBundledAddonsDir();
-  const base       = targetBase ? path.resolve(targetBase) : path.join(os.homedir(), 'Documents', 'ArcheRage', 'Addon');
-  if (targetBase && !base.startsWith(os.homedir())) {
-    return { ok: false, error: 'Invalid path' };
+  const validation = validateAddonBasePath(targetBase || getDefaultAddonBase(), { mustExist: false });
+  if (!validation.valid) {
+    return { ok: false, error: validation.reason || 'Invalid path', targetBase: validation.path };
   }
-  // H-2: Dereference symlinks/junctions before writing — prevents escaping the
-  // user directory via a symlink that points somewhere outside homedir.
-  // base may not exist yet (first install), so fall back to base on error.
-  let realBase = base;
-  try { realBase = fs.realpathSync(base); } catch { /* base doesn't exist yet — ok */ }
-  if (!realBase.startsWith(os.homedir())) {
-    return { ok: false, error: 'Invalid path' };
-  }
+  const base = validation.path;
   // Validate names against known addon list to prevent path traversal via name param
   const toInstall = (names && names.length)
     ? names.filter(n => ADDON_NAMES.includes(n))
@@ -909,7 +969,7 @@ ipcMain.handle('install-addons', (event, { names, targetBase } = {}) => {
       results[name] = { ok: false, error: e.message };
     }
   }
-  return { ok: true, results, targetBase: base };
+  return { ok: true, results, targetBase: base, warning: validation.warning };
 });
 
 // ─── IPC: RECIPE SUBMISSIONS ─────────────────────────────────────────────────
